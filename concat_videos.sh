@@ -12,5 +12,5 @@ concat_file="concat_list.txt"
 output_video_path="${converted_video_path}concat_video.mp4"
 ##CONFIG - END
 
-for f in ${converted_video_path}*.mp4; do echo "file '$f'" >> $concat_file; done
+for file in ${converted_video_path}resampled_*.mp4; do echo "file '$file'" >> $concat_file; done
 ffmpeg -f concat -safe 0 -i $concat_file -c copy $output_video_path
