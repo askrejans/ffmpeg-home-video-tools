@@ -30,6 +30,9 @@ Does the same as the padding script, however it crops video where the resoltion 
 ## add_missing_audio_tracks.sh
 As not all video contain audio, however for concat all files need an audio track, this script adds 0 audio to such tracks, so that everythin works.
 
+## resample_all_audio.sh
+In case you find that normal concat produces out of sync audio and video, try to run this. It resamples audio with aresample=async=1000, that should fix this. Creates resampled_ prefixed files. concat_videos.sh assumes that this step is used. If it is skipped, change file select configuration there where needed.
+
 Next stage is concatenation:
 ## concat_videos.sh
 This creates a concat_list.txt of all the converted mp4's and joins them together in concatenated mp4. This is ready for encoding in a lower bitrate if needed.
