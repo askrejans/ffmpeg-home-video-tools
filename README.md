@@ -10,4 +10,4 @@ There are three poossible ffmpeg actions:
 
 -Lower res. video ir reencoded to 1080p upscaled mp4 with high quality/low compression.
 
-In all cases audio is reencoded to 320k aac.
+In all cases audio is reencoded to 320k aac. Video frame rate is forced to 25 FPS.
