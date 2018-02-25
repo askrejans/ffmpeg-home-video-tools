@@ -15,9 +15,8 @@ if [[ -z "${audio_track// }" ]]; then
 
 printf "Found file without an audio: ${file}}\n"
 base_filename=$(basename $file)
-ffmpeg -y -f lavfi -i anullsrc=channel_layout=stereo:sample_rate=44100 -i $file \
+ffmpeg -y -f lavfi -i anullsrc=channel_layout=stereo:sample_rate=48000 -i $file \
   -shortest -c:v copy -c:a aac "${converted_video_path}with_empty_audio_${base_filename}" -hide_banner
 
 fi
 done
-
