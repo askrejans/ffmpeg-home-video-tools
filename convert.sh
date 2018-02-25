@@ -11,13 +11,14 @@ rotate=$(ffprobe -loglevel error -select_streams v:0 -show_entries stream_tags=r
 
 if [ "${rotate}" == "90" ]; then
 
-ffmpeg -i "$file" -f mp4 -filter_complex '[0:v]scale=ih*16/9:-1,boxblur=luma_radius=min(h\,w)/20:luma_power=1:chroma_radius=min(cw\,ch)/20:chroma_power=1[bg];[bg][0:v]overlay=(W-w)/2:(H-h)/2,crop=h=iw*9/16' -vcodec libx264 -crf 18 -preset veryfast -profile:v main -acodec aac "converted/${currentDate}.mp4" -hide_banner;
+ffmpeg -i "$file" -r 25 -f mp4 -vf "scale=w=1920:h=1080:force_original_aspect_ratio=1,pad=1920:1080:(ow-iw)/2:(oh-ih)/2" -c:v libx264 -preset veryfast -crf 18 -c:a aac -b:a 320k "converted/${currentDate}.mp4" -hide_banner;
 
 elif [ "${size}" == "1920x1080" ]; then
-ffmpeg -i "$file" -f mp4 -vcodec libx264 -crf 18 -preset veryfast -profile:v main -acodec aac "converted/${currentDate}.mp4" -hide_banner;
+
+ffmpeg -i "$file" -r 25 -f mp4 -c:v libx264 -preset veryfast -crf 18 -c:a aac -b:a 320k "converted/${currentDate}.mp4" -hide_banner;
 
 else
-ffmpeg -i "$file" -f mp4 -vf scale=-1:1080:flags=neighbor -vcodec libx264 -crf 18 -preset veryfast -profile:v main -acodec aac "converted/${currentDate}.mp4" -hide_banner;
+ffmpeg -i "$file" -r 25 -f mp4 -vf "scale=-1:1080:flags=lanczos" -c:v libx264 -preset veryfast -crf 18 -c:a aac -b:a 320k "converted/${currentDate}.mp4" -hide_banner;
 
 fi
 done
