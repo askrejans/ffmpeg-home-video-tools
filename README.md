@@ -45,7 +45,7 @@ For videos lacking audio tracks, this script adds a silent audio track to facili
 If audio and video sync issues arise during concatenation, running this script can help by resampling audio using `aresample=async=1000`. Adjust the file selection configuration in `concat_videos.sh` if this step is skipped.
 
 ## Concatenation
-```markdown
+
 Script: `concat_videos.sh`
 
 This script generates a `concat_list.txt` of all converted MP4 files and merges them into a concatenated MP4. This file is ready for further encoding at a lower bitrate if required.
