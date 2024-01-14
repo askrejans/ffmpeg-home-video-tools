@@ -1,38 +1,61 @@
-# ffmpeg home video tools
+# FFmpeg Home Video Tools
 
-This is a small colection of useful shell scripts that utilize ffmpeg and assist in creating an order in the usual modern format zoo of the home video world. This came as a result of a personal need and worked well to bring a bit of an order to the chaos of my personal home video collection. For now there is no unified solution - scripts can be run as needed with careful inspection of the results until the desired is reached. In the future might create a more universal and configurable ffmpeg wrapper/tool.
+Welcome to the FFmpeg Home Video Tools repository, a curated collection of shell scripts designed to streamline and enhance your home video organization using FFmpeg. These scripts have been developed to address the challenges of managing a diverse range of video formats commonly found in personal collections.
 
-### WARNING - use this at your own risk and carefully. This has so far been only tested to my own needs, so data loss is possible if you are not thinking what you are doing. I am not responsible for any lost data when using this. There might be some edge cases still, where everything goes horribly wrong. Please do tests on small batches before.
-Main script:
-## batch_convert_to_mp4.sh
-Small shell script to identify and batch convert all files in called folder to high quality/low compression mp4 in unified fullHD resolution - useful for batch video standardization.
+## Usage Warning
 
-Make sure to create "converted" directory there before running script, as for now the default path assumes videos to be stored relative to the scripts in the video directory and converted ones are created in video/converted. Feel free to change it to fit your needs.
+Please exercise caution and use these scripts at your own risk. While they have been tested to meet personal requirements, there is a potential risk of data loss if not used carefully. Ensure thorough testing on small batches before applying these tools to larger datasets.
 
-There are three poossible ffmpeg actions in the main script:
+## Getting Started
 
--Vertically rotated video is upscaled to 1080p and black bars are padded to the sides. All encoded to mp4 with high quality/low compression
+All Bash scripts are located in the "bash" directory. The primary entry point is the `process_videos.sh` script, which serves as the main interface for handling input and output parameters.
 
--1080p video is reencoded to mp4 with high quality/low compression
+```bash
+sh ./process_videos.sh input_folder output_folder
+```
 
--Lower res. video ir reencoded to 1080p upscaled mp4 with high quality/low compression.
+## Main Script: `batch_convert_to_mp4.sh`
 
-In all cases audio is reencoded to 320k aac. Video frame rate is forced to 25 fps.
+This script identifies and batch converts files within a specified folder to high-quality, low-compression MP4 format with a unified Full HD resolution. The script performs the following actions based on the input file characteristics:
 
-This script takes care of the most cases, however some extra cases remain. For now there are two helper scripts to assist:
+- Vertically rotated videos are upscaled to 1080p with blurred bars padded to the sides, encoded to MP4 with high quality/low compression.
+- 1080p videos are reencoded to MP4 with high quality/low compression.
+- Lower resolution videos are reencoded to 1080p upscaled MP4 with high quality/low compression.
 
-## pad_to_fullhd.sh
-Goes over the converted files and checks if there are any that are not exactly 1920x1080. These are padded with black bars where needed. On some edge cases it does not work as intended for now.
+Audio is consistently reencoded to 320k AAC, and the video frame rate is forced to 25 fps.
 
-## crop_to_fullhd.sh
-Does the same as the padding script, however it crops video where the resoltion is more than fullhd. Can take care of most cases where padding won't do. Will create an universal script in the future.
+**Note:** Ensure a "converted" directory is created before running the script.
 
-## add_missing_audio_tracks.sh
-As not all video contain audio, however for concat all files need an audio track, this script adds 0 audio to such tracks, so that everythin works.
+## Helper Scripts
 
-## resample_all_audio.sh
-In case you find that normal concat produces out of sync audio and video, try to run this. It resamples audio with aresample=async=1000, that should fix this. Creates resampled_ prefixed files. concat_videos.sh assumes that this step is used. If it is skipped, change file select configuration there where needed.
+### `pad_to_fullhd.sh`
 
-Next stage is concatenation:
-## concat_videos.sh
-This creates a concat_list.txt of all the converted mp4's and joins them together in concatenated mp4. This is ready for encoding in a lower bitrate if needed.
+This script checks converted files for resolutions other than 1920x1080 and pads them with black bars as needed. Some edge cases may not work as intended.
+
+### `crop_to_fullhd.sh`
+
+Similar to the padding script, this script crops video where the resolution exceeds Full HD. A more universal script is planned for future releases.
+
+### `add_missing_audio_tracks.sh`
+
+For videos lacking audio tracks, this script adds a silent audio track to facilitate concatenation.
+
+### `resample_all_audio.sh`
+
+If audio and video sync issues arise during concatenation, running this script can help by resampling audio using `aresample=async=1000`. Adjust the file selection configuration in `concat_videos.sh` if this step is skipped.
+
+## Concatenation
+```markdown
+Script: `concat_videos.sh`
+
+This script generates a `concat_list.txt` of all converted MP4 files and merges them into a concatenated MP4. This file is ready for further encoding at a lower bitrate if required.
+
+## Master Script: `process_videos.sh`
+
+This master script orchestrates the sequential execution of the above scripts, ensuring a smooth processing flow. Provide input and output paths as parameters:
+
+```bash
+sh ./process_videos.sh input_folder output_folder
+```
+
+Feel free to explore and adapt these tools to suit your specific needs. Your feedback and contributions are welcome!
