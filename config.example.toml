@@ -1,0 +1,72 @@
+# FFmpeg Video Processor Configuration
+# 4K TV-Optimized Default Settings
+# This is a sample configuration file showing all available options
+
+[processing]
+# Target resolution (width x height) - 4K UHD
+target_resolution = [3840, 2160]
+
+# Target frames per second - PAL standard for TV playback
+target_fps = 25
+
+# Video codec (libx264, libx265, etc.)
+video_codec = "libx264"
+
+# Video encoding preset: ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow
+# 'medium' provides good balance between encoding speed and compression for 4K
+video_preset = "medium"
+
+# Constant Rate Factor for video quality (0-51, lower is better quality)
+# CRF 20 for 4K gives excellent quality without excessive file sizes
+video_crf = 18
+
+# CRF for padding operations (can be higher since it's blurred background)
+padding_crf = 22
+
+# Audio codec
+audio_codec = "aac"
+
+# Audio bitrate in kbps
+audio_bitrate = 320
+
+# Audio sample rate in Hz - standard for video
+audio_sample_rate = 48000
+
+# Audio channels (2 = stereo)
+audio_channels = 2
+
+# Blur radius divisor for padding (higher = less blur)
+blur_radius_divisor = 20
+
+# Async compensation for audio resampling
+async_compensation = 1000
+
+# Number of parallel processing jobs (0 = auto-detect based on CPU cores)
+parallel_jobs = 0
+
+# Keep intermediate files after processing (useful for debugging)
+keep_intermediates = false
+
+[logging]
+# Log level: trace, debug, info, warn, error
+level = "info"
+
+# Write logs to file
+log_to_file = true
+
+# Log directory (null = use output directory)
+# log_dir = "/path/to/logs"
+log_dir = null
+
+[behavior]
+# Enable checkpoint/resume functionality
+checkpoint_enabled = true
+
+# Automatically resume from checkpoint if found
+auto_resume = false
+
+# Clean up intermediate files on successful completion
+cleanup_on_success = true
+
+# Minimum free disk space required (in GB)
+min_disk_space_gb = 10

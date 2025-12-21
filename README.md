@@ -1,20 +1,74 @@
 # FFmpeg Home Video Tools
 
-Welcome to the FFmpeg Home Video Tools repository, a curated collection of shell scripts designed to streamline and enhance your home video organization using FFmpeg. These scripts have been developed to address the challenges of managing a diverse range of video formats commonly found in personal collections.
+A video processing toolkit for standardizing and concatenating home videos to 4K UHD (3840x2160). Available in both Bash and Rust implementations.
+
+## Quick Start
+
+### Rust Version (Recommended)
+```bash
+# Build and install
+cargo install --path .
+
+# Process videos with TUI (if interactive terminal)
+ffmpeg-video-processor process /path/to/input /path/to/output
+
+# Or use CLI mode
+ffmpeg-video-processor process /path/to/input /path/to/output --no-tui
+
+# See all options
+ffmpeg-video-processor --help
+```
+
+### Bash Version
+```bash
+cd bash
+./process_videos.sh /path/to/input /path/to/output
+```
+
+## 🎯 What It Does
+
+Standardizes diverse home video formats into a single, unified MP4 file:
+
+1. **Batch Convert** - Standardize all videos to MP4 format (25fps PAL)
+2. **Pad** - Add blurred background to non-standard aspect ratios
+3. **Crop** - Crop oversized videos to target resolution
+4. **Add Audio** - Generate silent audio for videos without audio
+5. **Resample** - Normalize all audio to 48kHz stereo
+6. **Concatenate** - Merge everything into final output
+
+**Default Output Settings:**
+- Resolution: 3840x2160 (4K UHD)
+- Frame Rate: 25 fps (PAL standard)
+- Video: H.264 (libx264), CRF 20, medium preset
+- Audio: AAC 256kbps, 48kHz stereo
 
 ## Usage Warning
 
-Please exercise caution and use these scripts at your own risk. While they have been tested to meet personal requirements, there is a potential risk of data loss if not used carefully. Ensure thorough testing on small batches before applying these tools to larger datasets.
+**⚠️ Important:** These tools modify video files. Always work on copies of your original files, not the originals themselves. Test on a small batch first!
 
-## Getting Started
+## 📚 Bash Scripts Documentation
 
-All Bash scripts are located in the "bash" directory. The primary entry point is the `process_videos.sh` script, which serves as the main interface for handling input and output parameters.
+All Bash scripts are located in the `bash/` directory with production-hardening applied.
+
+### Main Entry Point: `process_videos.sh`
+
+The master script that orchestrates the entire pipeline with comprehensive logging and error handling:
 
 ```bash
-sh ./process_videos.sh input_folder output_folder
+cd bash
+./process_videos.sh /path/to/input /path/to/output
 ```
 
-## Main Script: `batch_convert_to_mp4.sh`
+**Features:**
+- Pre-flight checks (FFmpeg availability, disk space)
+- Detailed logging to `output/logs/process_YYYYMMDD_HHMMSS.log`
+- Progress tracking for each step
+- Automatic error detection and reporting
+- Cleanup trap handlers
+
+### Processing Steps
+
+#### `batch_convert_to_mp4.sh`
 
 This script identifies and batch converts files within a specified folder to high-quality, low-compression MP4 format with a unified Full HD resolution. The script performs the following actions based on the input file characteristics:
 
@@ -24,38 +78,52 @@ This script identifies and batch converts files within a specified folder to hig
 
 Audio is consistently reencoded to 320k AAC, and the video frame rate is forced to 25 fps.
 
-**Note:** Ensure a "converted" directory is created before running the script.
+#### `pad_to_fullhd.sh`
 
-## Helper Scripts
+Checks converted files for resolutions other than 1920x1080 and pads them with a blurred background.
 
-### `pad_to_fullhd.sh`
+#### `crop_to_fullhd.sh`
 
-This script checks converted files for resolutions other than 1920x1080 and pads them with black bars as needed. Some edge cases may not work as intended.
+Crops videos where the resolution exceeds Full HD while maintaining 16:9 aspect ratio.
 
-### `crop_to_fullhd.sh`
+#### `add_missing_audio_tracks.sh`
 
-Similar to the padding script, this script crops video where the resolution exceeds Full HD. A more universal script is planned for future releases.
+Adds silent audio tracks to videos lacking audio, required for concatenation.
 
-### `add_missing_audio_tracks.sh`
+#### `resample_all_audio.sh`
 
-For videos lacking audio tracks, this script adds a silent audio track to facilitate concatenation.
+Resamples audio using `aresample=async=1000` to prevent sync issues during concatenation.
 
-### `resample_all_audio.sh`
+#### `concat_videos.sh`
 
-If audio and video sync issues arise during concatenation, running this script can help by resampling audio using `aresample=async=1000`. Adjust the file selection configuration in `concat_videos.sh` if this step is skipped.
+Concatenates all processed videos into a single timestamped output file and cleans up intermediate files.
 
-## Concatenation
+## 🛠️ Requirements
 
-Script: `concat_videos.sh`
+- **FFmpeg** (with ffprobe) - Must be installed and in PATH
+- **For Rust version:** Rust 1.70+ (for building from source)
+- **For Bash version:** bash, bc (for frame rate calculations)
 
-This script generates a `concat_list.txt` of all converted MP4 files and merges them into a concatenated MP4. This file is ready for further encoding at a lower bitrate if required.
+## 📖 Documentation
 
-## Master Script: `process_videos.sh`
+- **[Rust Implementation Guide](RUST_README.md)** - Complete documentation for the Rust version
+- **[Example Configuration](config.example.toml)** - Sample configuration file
+- **[Docker Support](Dockerfile)** - Containerized deployment
 
-This master script orchestrates the sequential execution of the above scripts, ensuring a smooth processing flow. Provide input and output paths as parameters:
+## 🤝 Contributing
 
-```bash
-sh ./process_videos.sh input_folder output_folder
-```
+Contributions are welcome! Please:
+1. Fork the repository
+2. Create a feature branch
+3. Add tests for new functionality
+4. Ensure all tests pass
+5. Submit a pull request
 
-Feel free to explore and adapt these tools to suit your specific needs. Your feedback and contributions are welcome!
+## 📄 License
+
+MIT License - See [LICENSE](LICENSE) file for details
+
+## 🙏 Acknowledgments
+
+Originally created as personal shell scripts, now evolved into a production-ready tool with both Bash and Rust implementations.
+
