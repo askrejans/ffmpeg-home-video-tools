@@ -121,7 +121,7 @@ Contributions are welcome! Please:
 
 ## 📄 License
 
-MIT License - See [LICENSE](LICENSE) file for details
+BSD 2-Clause License - See [LICENSE](LICENSE) file for details
 
 ## 🙏 Acknowledgments
 
