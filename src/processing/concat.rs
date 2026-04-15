@@ -4,7 +4,6 @@ use crate::types::ProcessingConfig;
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
-use std::process::Command;
 use tracing::info;
 use walkdir::WalkDir;
 
@@ -19,8 +18,7 @@ where
     F: Fn(crate::types::ProgressUpdate) + Send + Sync,
 {
     info!("[CONCAT] Starting video concatenation");
-    
-    // Send initial progress
+
     progress_callback(crate::types::ProgressUpdate {
         step: crate::types::ProcessingStep::Concatenate,
         current: 0,
@@ -33,38 +31,45 @@ where
     let concat_list_path = output_path.join("concat_list.txt");
 
     // Find only resampled MP4 files to concatenate
-    let mut video_files = Vec::new();
-    for entry in WalkDir::new(output_path)
+    let mut video_files: Vec<_> = WalkDir::new(output_path)
         .max_depth(1)
         .into_iter()
         .filter_map(|e| e.ok())
-    {
-        let path = entry.path();
-        let filename = path.file_name().unwrap().to_string_lossy();
-        // Only process resampled files - they are the final preprocessed output
-        if filename.starts_with("resampled_") && path.extension().and_then(|s| s.to_str()) == Some("mp4") {
-            video_files.push(path.to_path_buf());
-        }
-    }
+        .filter(|entry| {
+            let filename = entry.path().file_name().unwrap().to_string_lossy();
+            filename.starts_with("resampled_")
+                && entry
+                    .path()
+                    .extension()
+                    .and_then(|s| s.to_str())
+                    .is_some_and(|ext| ext.eq_ignore_ascii_case("mp4"))
+        })
+        .map(|e| e.path().to_path_buf())
+        .collect();
 
     if video_files.is_empty() {
         return Err(VideoProcessorError::ConcatenationFailed(
-            "No MP4 files found to concatenate".to_string(),
+            "No resampled MP4 files found to concatenate".to_string(),
         ));
     }
 
     // Sort files by name for consistent ordering
     video_files.sort();
 
-    info!("[CONCAT] Found {} file(s) to concatenate", video_files.len());
+    info!(
+        "[CONCAT] Found {} file(s) to concatenate",
+        video_files.len()
+    );
 
-    // Create concat list file
+    // Create concat list file with ABSOLUTE paths for reliability
     let mut concat_file = File::create(&concat_list_path)?;
     for video_file in &video_files {
-        let file_name = video_file.file_name().unwrap().to_string_lossy();
-        // Escape single quotes in filename
-        let escaped_name = file_name.replace("'", "'\\''");
-        writeln!(concat_file, "file '{}'", escaped_name)?;
+        let abs_path = video_file
+            .canonicalize()
+            .unwrap_or_else(|_| video_file.clone());
+        // Escape single quotes in path
+        let escaped_path = abs_path.to_string_lossy().replace('\'', "'\\''");
+        writeln!(concat_file, "file '{}'", escaped_path)?;
     }
     concat_file.flush()?;
 
@@ -76,10 +81,9 @@ where
     let output_file = output_path.join(&output_filename);
 
     info!("[CONCAT] Creating final video: {}", output_filename);
-    info!("[CONCAT] Re-encoding all videos for consistency and final quality");
 
-    // Execute concatenation with re-encoding
-    let mut cmd = Command::new("ffmpeg");
+    // Execute concatenation with re-encoding for consistency
+    let mut cmd = ffmpeg.ffmpeg_cmd();
     cmd.arg("-y")
         .arg("-f")
         .arg("concat")
@@ -93,6 +97,8 @@ where
         .arg(&config.video_preset)
         .arg("-crf")
         .arg(config.video_crf.to_string())
+        .arg("-pix_fmt")
+        .arg("yuv420p")
         .arg("-c:a")
         .arg(&config.audio_codec)
         .arg("-b:a")
@@ -100,13 +106,18 @@ where
         .arg("-r")
         .arg(config.target_fps.to_string())
         .arg("-s")
-        .arg(format!("{}x{}", config.target_resolution.0, config.target_resolution.1))
+        .arg(format!(
+            "{}x{}",
+            config.target_resolution.0, config.target_resolution.1
+        ))
+        .arg("-movflags")
+        .arg("+faststart")
         .arg(&output_file)
         .arg("-hide_banner")
         .arg("-loglevel")
         .arg("error");
 
-    ffmpeg.execute_command(cmd).map_err(|e| {
+    ffmpeg.execute_command(cmd).await.map_err(|e| {
         VideoProcessorError::ConcatenationFailed(format!("FFmpeg concatenation failed: {}", e))
     })?;
 
@@ -119,7 +130,6 @@ where
 
     info!("[CONCAT] ✓ Concatenation successful: {}", output_filename);
 
-    // Get final file size
     if let Ok(metadata) = output_file.metadata() {
         let file_size_mb = metadata.len() / (1024 * 1024);
         info!("[CONCAT] Final file size: {} MB", file_size_mb);
@@ -131,11 +141,8 @@ where
         let mut removed_count = 0;
 
         for video_file in &video_files {
-            let file_name = video_file.file_name().unwrap().to_string_lossy();
-            if file_name.starts_with("resampled_") {
-                if std::fs::remove_file(video_file).is_ok() {
-                    removed_count += 1;
-                }
+            if std::fs::remove_file(video_file).is_ok() {
+                removed_count += 1;
             }
         }
 

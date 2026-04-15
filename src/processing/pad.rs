@@ -2,11 +2,12 @@ use crate::error::{Result, VideoProcessorError};
 use crate::ffmpeg::FFmpegWrapper;
 use crate::types::ProcessingConfig;
 use std::path::Path;
-use std::process::Command;
 use tracing::{info, warn};
 use walkdir::WalkDir;
 
-/// Pad videos that aren't exactly target resolution with blurred background
+/// Pad videos that aren't exactly target resolution with blurred background.
+/// Uses split→blur→overlay filter to create a visually appealing blurred
+/// background behind the original video content.
 pub async fn pad_videos<F>(
     output_path: &Path,
     config: &ProcessingConfig,
@@ -24,35 +25,42 @@ where
         return Ok(());
     }
 
-    let mut video_files = Vec::new();
-    for entry in WalkDir::new(&preprocessed_path)
+    let mut video_files: Vec<_> = WalkDir::new(&preprocessed_path)
         .max_depth(1)
         .into_iter()
         .filter_map(|e| e.ok())
-    {
-        if entry.path().extension().and_then(|s| s.to_str()) == Some("mp4") {
-            video_files.push(entry.path().to_path_buf());
-        }
-    }
+        .filter(|entry| {
+            entry
+                .path()
+                .extension()
+                .and_then(|s| s.to_str())
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("mp4"))
+        })
+        .map(|e| e.path().to_path_buf())
+        .collect();
 
     if video_files.is_empty() {
         info!("[PAD] No files to process");
         return Ok(());
     }
 
+    video_files.sort();
     let mut padded_count = 0;
     let total_count = video_files.len();
+    let (target_width, target_height) = config.target_resolution;
 
     for (idx, video_file) in video_files.iter().enumerate() {
+        let file_name = video_file.file_name().unwrap().to_string_lossy().to_string();
+
         progress_callback(crate::types::ProgressUpdate {
             step: crate::types::ProcessingStep::Pad,
             current: idx + 1,
             total: total_count,
-            file_name: Some(video_file.file_name().unwrap().to_string_lossy().to_string()),
+            file_name: Some(file_name.clone()),
             message: None,
             is_complete: false,
         });
-        
+
         let metadata = match ffmpeg.probe_video(video_file) {
             Ok(m) => m,
             Err(e) => {
@@ -61,75 +69,41 @@ where
             }
         };
 
-        let (target_width, target_height) = config.target_resolution;
+        if metadata.width == target_width && metadata.height == target_height {
+            info!("[PAD] {} already at target resolution, skipping", file_name);
+            continue;
+        }
 
-        if metadata.width != target_width || metadata.height != target_height {
-            info!(
-                "[PAD] Found non-standard resolution: {} ({}x{})",
-                video_file.file_name().unwrap().to_string_lossy(),
-                metadata.width,
-                metadata.height
-            );
+        info!(
+            "[PAD] Padding: {} ({}x{} → {}x{})",
+            file_name, metadata.width, metadata.height, target_width, target_height
+        );
 
-            let file_name = video_file.file_name().unwrap().to_string_lossy();
-            let output_file = preprocessed_path.join(format!("padded_{}", file_name));
+        // Write to a temp file in the same directory, then atomically replace
+        let temp_file = preprocessed_path.join(format!(".padding_{}", file_name));
 
-            // Build padding command with blurred background
-            let filter_complex = format!(
-                "[0]scale={}*2:{}*2,boxblur=luma_radius=min(h\\,w)/{}:luma_power=1:chroma_radius=min(cw\\,ch)/{}:chroma_power=1[bg];\
-                 [0]scale=-1:{}[ov];\
-                 [bg][ov]overlay=(W-w)/2:(H-h)/2:format=yuv444,crop=w={}:h={}",
-                target_width,
-                target_height,
-                config.blur_radius_divisor,
-                config.blur_radius_divisor,
-                target_height,
-                target_width,
-                target_height
-            );
+        let cmd = ffmpeg.build_pad_command(video_file, &temp_file, config);
 
-            let mut cmd = Command::new("ffmpeg");
-            cmd.arg("-y")
-                .arg("-noautorotate")
-                .arg("-i")
-                .arg(&video_file)
-                .arg("-filter_complex")
-                .arg(&filter_complex)
-                .arg("-c:v")
-                .arg(&config.video_codec)
-                .arg("-preset")
-                .arg(&config.video_preset)
-                .arg("-crf")
-                .arg(config.padding_crf.to_string())
-                .arg("-c:a")
-                .arg(&config.audio_codec)
-                .arg("-b:a")
-                .arg(format!("{}k", config.audio_bitrate))
-                .arg("-movflags")
-                .arg("+faststart")
-                .arg(&output_file)
-                .arg("-hide_banner")
-                .arg("-loglevel")
-                .arg("error");
-
-            ffmpeg.execute_command(cmd).map_err(|e| {
-                VideoProcessorError::ConversionFailed {
-                    file: video_file.to_path_buf(),
-                    reason: e.to_string(),
-                }
-            })?;
-
-            // Verify output and remove original
-            if output_file.exists() && output_file.metadata()?.len() > 0 {
-                std::fs::remove_file(&video_file)?;
-                padded_count += 1;
-                info!("[PAD]   ✓ Padded successfully");
-            } else {
-                return Err(VideoProcessorError::PaddingFailed {
-                    file: video_file.to_path_buf(),
-                    reason: "Output file not created properly".to_string(),
-                });
+        ffmpeg.execute_command(cmd).await.map_err(|e| {
+            // Clean up temp file on failure
+            let _ = std::fs::remove_file(&temp_file);
+            VideoProcessorError::PaddingFailed {
+                file: video_file.to_path_buf(),
+                reason: e.to_string(),
             }
+        })?;
+
+        // Verify output and atomically replace original
+        if temp_file.exists() && temp_file.metadata()?.len() > 0 {
+            std::fs::rename(&temp_file, video_file)?;
+            padded_count += 1;
+            info!("[PAD]   ✓ Padded successfully");
+        } else {
+            let _ = std::fs::remove_file(&temp_file);
+            return Err(VideoProcessorError::PaddingFailed {
+                file: video_file.to_path_buf(),
+                reason: "Output file not created properly".to_string(),
+            });
         }
     }
 

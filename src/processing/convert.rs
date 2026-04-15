@@ -5,7 +5,11 @@ use std::path::Path;
 use tracing::{debug, info};
 use walkdir::WalkDir;
 
-/// Convert all videos in input directory to standardized MP4 format
+const VIDEO_EXTENSIONS: &[&str] = &["mp4", "avi", "mov", "mkv", "m4v", "3gp"];
+
+/// Convert all videos in input directory to standardized MP4 format.
+/// Handles: codec normalization, rotation correction, fps normalization.
+/// Does NOT handle resolution — that's the pad step's job.
 pub async fn convert_videos<F>(
     input_path: &Path,
     output_path: &Path,
@@ -21,24 +25,23 @@ where
     let preprocessed_path = output_path.join("preprocessed");
     std::fs::create_dir_all(&preprocessed_path)?;
 
-    let video_extensions = ["mp4", "avi", "mov", "mkv", "m4v", "3gp", "MP4", "AVI", "MOV", "MKV", "M4V", "3GP"];
-    let mut video_files = Vec::new();
-
-    for entry in WalkDir::new(input_path)
+    let mut video_files: Vec<_> = WalkDir::new(input_path)
         .max_depth(1)
         .into_iter()
         .filter_map(|e| e.ok())
-    {
-        let path = entry.path();
-        if let Some(ext) = path.extension() {
-            if video_extensions
-                .iter()
-                .any(|&e| e.eq_ignore_ascii_case(&ext.to_string_lossy()))
-            {
-                video_files.push(path.to_path_buf());
-            }
-        }
-    }
+        .filter(|entry| {
+            entry
+                .path()
+                .extension()
+                .and_then(|ext| ext.to_str())
+                .is_some_and(|ext| {
+                    VIDEO_EXTENSIONS
+                        .iter()
+                        .any(|&e| e.eq_ignore_ascii_case(ext))
+                })
+        })
+        .map(|e| e.path().to_path_buf())
+        .collect();
 
     if video_files.is_empty() {
         return Err(VideoProcessorError::NoVideoFilesFound(
@@ -46,7 +49,13 @@ where
         ));
     }
 
-    info!("[CONVERT] Found {} video file(s) to process", video_files.len());
+    // Sort for deterministic ordering
+    video_files.sort();
+
+    info!(
+        "[CONVERT] Found {} video file(s) to process",
+        video_files.len()
+    );
 
     for (idx, input_file) in video_files.iter().enumerate() {
         let file_name = input_file
@@ -56,12 +65,17 @@ where
             .to_string();
         let output_file = preprocessed_path.join(format!("{}.mp4", file_name));
 
-        // Send progress update
         progress_callback(crate::types::ProgressUpdate {
             step: crate::types::ProcessingStep::BatchConvert,
             current: idx + 1,
             total: video_files.len(),
-            file_name: Some(input_file.file_name().unwrap().to_string_lossy().to_string()),
+            file_name: Some(
+                input_file
+                    .file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .to_string(),
+            ),
             message: None,
             is_complete: false,
         });
@@ -92,10 +106,9 @@ where
             metadata.width, metadata.height, metadata.fps, metadata.rotation
         );
 
-        // Build and execute conversion command
         let cmd = ffmpeg.build_convert_command(input_file, &output_file, &metadata, config);
 
-        ffmpeg.execute_command(cmd).map_err(|e| {
+        ffmpeg.execute_command(cmd).await.map_err(|e| {
             VideoProcessorError::ConversionFailed {
                 file: input_file.clone(),
                 reason: e.to_string(),
@@ -111,13 +124,4 @@ where
     );
 
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_convert_module_exists() {
-        // Placeholder test - actual tests would use mocked FFmpeg
-        assert!(true);
-    }
 }

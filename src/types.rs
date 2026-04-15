@@ -20,9 +20,26 @@ impl VideoMetadata {
         self.rotation == Some(90) || self.rotation == Some(270)
     }
 
+    #[allow(dead_code)]
     pub fn is_vertical(&self) -> bool {
-        // Check if dimensions are vertical (height > width) OR if rotation metadata indicates vertical
-        self.height > self.width || self.is_rotated_vertical()
+        let (w, h) = self.effective_dimensions();
+        h > w
+    }
+
+    /// Get the effective dimensions after accounting for rotation metadata.
+    /// Videos with 90/270 rotation have swapped width/height in their metadata.
+    #[allow(dead_code)]
+    pub fn effective_dimensions(&self) -> (u32, u32) {
+        if self.is_rotated_vertical() {
+            (self.height, self.width) // swap for rotated videos
+        } else {
+            (self.width, self.height)
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn aspect_ratio(&self) -> f64 {
+        self.width as f64 / self.height as f64
     }
 }
 

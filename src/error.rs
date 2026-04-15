@@ -49,6 +49,13 @@ pub enum VideoProcessorError {
     #[error("Concatenation failed: {0}")]
     ConcatenationFailed(String),
 
+    #[allow(dead_code)]
+    #[error("Command timed out after {timeout_secs} seconds")]
+    Timeout { timeout_secs: u64 },
+
+    #[error("Task join error: {0}")]
+    JoinError(String),
+
     #[error("Configuration error: {0}")]
     ConfigError(String),
 
