@@ -79,6 +79,8 @@ pub(crate) struct Fonts {
 #[derive(Debug, Clone)]
 pub(crate) struct ShapedGlyph {
     pub font_id: fontdb::ID,
+    /// Font size in pixels (fallback runs may differ from the layer size).
+    pub size: f32,
     pub weight: fontdb::Weight,
     pub flags: CacheKeyFlags,
     pub glyph_id: u16,
@@ -289,15 +291,28 @@ impl Fonts {
         runs
     }
 
-    /// Shape one line of text at `px` pixels.
+    /// Shape one line of text at `px` pixels. Runs set in a fallback face
+    /// are scaled so their cap height matches the primary face.
     pub(crate) fn shape_line(&mut self, text: &str, chain: &[Face], px: f32) -> ShapedLine {
         let runs = self.split_runs(text, chain);
         let mut buffer = Buffer::new_empty(Metrics::new(px, px * 1.2));
         buffer.set_wrap(Wrap::None);
         buffer.set_size(None, None);
+        let primary_cap = self.cap_height(&chain[0], 1.0);
         let spans: Vec<(&str, Attrs<'_>)> = runs
             .iter()
-            .map(|(range, face)| (&text[range.clone()], chain[face.unwrap_or(0)].attrs()))
+            .map(|(range, face)| {
+                let face_index = face.unwrap_or(0);
+                let mut attrs = chain[face_index].attrs();
+                if face_index > 0 {
+                    let ratio =
+                        (primary_cap / self.cap_height(&chain[face_index], 1.0)).clamp(0.7, 1.3);
+                    if (ratio - 1.0).abs() > 0.01 {
+                        attrs = attrs.metrics(Metrics::new(px * ratio, px * 1.2));
+                    }
+                }
+                (&text[range.clone()], attrs)
+            })
             .collect();
         buffer.set_rich_text(spans, &chain[0].attrs(), Shaping::Advanced, None);
         buffer.shape_until_scroll(&mut self.fs, false);
@@ -317,6 +332,7 @@ impl Fonts {
                 }
                 glyphs.push(ShapedGlyph {
                     font_id: g.font_id,
+                    size: g.font_size,
                     weight: g.font_weight,
                     flags: g.cache_key_flags,
                     glyph_id: g.glyph_id,
@@ -351,8 +367,9 @@ impl Fonts {
             .unwrap_or(px * 0.7)
     }
 
-    /// Vector outline (or colour sprite) of a shaped glyph at `px`.
-    pub(crate) fn glyph_shape(&mut self, g: &ShapedGlyph, px: f32) -> GlyphShape {
+    /// Vector outline (or colour sprite) of a shaped glyph at its size.
+    pub(crate) fn glyph_shape(&mut self, g: &ShapedGlyph) -> GlyphShape {
+        let px = g.size;
         let Some(font) = self.fs.get_font(g.font_id, g.weight) else {
             return GlyphShape::Empty;
         };

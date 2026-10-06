@@ -561,16 +561,16 @@ fn prepare_text(
     let mut lines = Vec::new();
     let mut glyphs = Vec::new();
     let mut shapes: Vec<GlyphShape> = Vec::new();
-    let mut shape_index: HashMap<(cosmic_text::fontdb::ID, u16, u32), usize> = HashMap::new();
+    let mut shape_index: HashMap<(cosmic_text::fontdb::ID, u16, u32, u32), usize> = HashMap::new();
     let mut cluster_base = 0usize;
     for (li, line_text) in fitted.lines.iter().enumerate() {
         let line = fonts.shape_line(line_text, &chain, px);
         for g in &line.glyphs {
-            let key = (g.font_id, g.glyph_id, g.flags.bits());
+            let key = (g.font_id, g.glyph_id, g.flags.bits(), g.size.to_bits());
             let shape = match shape_index.get(&key) {
                 Some(i) => *i,
                 None => {
-                    shapes.push(fonts.glyph_shape(g, px));
+                    shapes.push(fonts.glyph_shape(g));
                     shape_index.insert(key, shapes.len() - 1);
                     shapes.len() - 1
                 }

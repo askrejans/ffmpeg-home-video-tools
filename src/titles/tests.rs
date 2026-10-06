@@ -129,6 +129,31 @@ fn multilingual_text_has_no_missing_glyphs() {
 
 #[cfg(feature = "builtin-templates")]
 #[test]
+fn other_scripts_and_tiny_canvases_do_not_panic() {
+    // Scripts the bundled fonts lack fall back to installed fonts when there
+    // are any; either way rendering must succeed.
+    let f = fields(&[
+        ("title", "夏天 🎉 שלום مرحبا"),
+        ("subtitle", "ไทย 한국어"),
+        ("date", "2026"),
+    ]);
+    for name in TitleTemplate::builtin_names() {
+        let tpl = TitleTemplate::builtin(name).unwrap();
+        let r = TitleRenderer::new(&tpl, &f, 640, 360, 25).unwrap();
+        let mut buf = vec![0u8; 640 * 360 * 4];
+        r.render_frame(r.frame_count() / 2, &mut buf);
+        for (w, h) in [(1u32, 1u32), (2, 3), (17, 9), (9, 17)] {
+            let r = TitleRenderer::new(&tpl, &sample_fields(), w, h, 30).unwrap();
+            let mut buf = vec![0u8; (w * h * 4) as usize];
+            for i in 0..r.frame_count() {
+                r.render_frame(i, &mut buf);
+            }
+        }
+    }
+}
+
+#[cfg(feature = "builtin-templates")]
+#[test]
 fn required_and_optional_fields() {
     let tpl = TitleTemplate::builtin("clean").unwrap();
     let err = TitleRenderer::new(&tpl, &fields(&[("subtitle", "x")]), 640, 360, 25)
@@ -380,7 +405,7 @@ fn field_values_are_cleaned_and_capped() {
 ///
 /// Environment: `TITLE_PREVIEW_DIR` (output directory), `TITLE_PREVIEW_TEMPLATES`
 /// (comma-separated built-in names or template directories), `TITLE_PREVIEW_SETS`
-/// (`en`, `lv`, `title-only`) and `TITLE_PREVIEW_TIMES` (seconds, e.g. `0.5,2.8`).
+/// (`en`, `lv`, `title-only`, `ru`, `world`) and `TITLE_PREVIEW_TIMES` (seconds, e.g. `0.5,2.8`).
 #[cfg(feature = "builtin-templates")]
 #[test]
 #[ignore]
@@ -400,8 +425,27 @@ fn export_preview_frames() {
             ]),
         ),
         ("title-only", fields(&[("title", "Ελλάδα 2025")])),
+        (
+            "ru",
+            fields(&[
+                ("title", "Лето на даче у бабушки"),
+                ("subtitle", "Семейный архив"),
+                ("date", "Июль 1986"),
+            ]),
+        ),
+        (
+            "world",
+            fields(&[
+                ("title", "夏天 🎉 שלום مرحبا"),
+                ("subtitle", "ไทย 한국어"),
+                ("date", "2026"),
+            ]),
+        ),
     ];
-    let only_sets = std::env::var("TITLE_PREVIEW_SETS").ok();
+    // The "world" set needs installed fonts, so it is only rendered on request.
+    let only_sets = std::env::var("TITLE_PREVIEW_SETS")
+        .ok()
+        .or_else(|| Some("en,lv,title-only,ru".to_string()));
     let sets: Vec<_> = sets
         .into_iter()
         .filter(|(s, _)| {
