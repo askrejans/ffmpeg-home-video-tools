@@ -1,0 +1,94 @@
+{
+  "format": 1,
+  "name": "clean",
+  "description": "Minimal modern title: a sans-serif title rises and tracks in, a thin rule draws out from the centre, subtitle and date follow.",
+  "duration": 5.0,
+  "background": { "kind": "footage", "dim": 0.58, "blur": 1.2 },
+  "fonts": ["../fonts"],
+  "fallback_fonts": ["IBM Plex Sans"],
+  "safe_area": { "x": 0.08, "y": 0.1 },
+  "stacks": { "main": { "y": 0.5, "valign": "middle" } },
+  "portrait": {
+    "safe_area": { "x": 0.08, "y": 0.14 },
+    "stacks": { "main": { "y": 0.47 } }
+  },
+  "fields": [
+    { "name": "title", "label": "Title", "max_chars": 60, "required": true },
+    { "name": "subtitle", "label": "Subtitle", "max_chars": 80 },
+    { "name": "date", "label": "Date", "max_chars": 40 }
+  ],
+  "layers": [
+    {
+      "type": "vignette",
+      "strength": 0.45,
+      "radius": 0.3,
+      "softness": 0.7,
+      "opacity": [[0, 0], [0.8, 1, "ease_out"]]
+    },
+    {
+      "type": "text",
+      "id": "title",
+      "field": "title",
+      "font": "IBM Plex Sans",
+      "weight": 600,
+      "size": 0.085,
+      "max_width": 0.84,
+      "max_lines": 2,
+      "line_height": 1.12,
+      "stack": "main",
+      "tracking": [[0.2, 0.08], [1.8, -0.005, "ease_out"]],
+      "stagger": { "each": 0.025 },
+      "glyph": {
+        "opacity": [[0.2, 0], [0.8, 1, "ease_out"]],
+        "dy": [[0.2, 0.04], [1.1, 0, "ease_out"]]
+      },
+      "shadow": { "color": "#000000", "opacity": 0.35, "blur": 0.012, "dy": 0.004 },
+      "opacity": [[3.6, 1], [4.6, 0, "ease_in_out"]]
+    },
+    {
+      "type": "rect",
+      "id": "rule",
+      "stack": "main",
+      "gap": 0.042,
+      "width": 0.11,
+      "height": 0.0032,
+      "color": "#FFFFFF",
+      "reveal": [[0.9, 0], [1.8, 1, "ease_in_out"]],
+      "reveal_from": "center",
+      "opacity": [[0, 0.9], [3.5, 0.9], [4.4, 0, "ease_in_out"]]
+    },
+    {
+      "type": "text",
+      "id": "subtitle",
+      "field": "subtitle",
+      "font": "IBM Plex Sans",
+      "weight": 300,
+      "size": 0.038,
+      "color": "#FFFFFFEB",
+      "max_width": 0.8,
+      "max_lines": 2,
+      "line_height": 1.25,
+      "stack": "main",
+      "gap": 0.046,
+      "dy": [[1.15, 0.016], [2.1, 0, "ease_out"]],
+      "shadow": { "color": "#000000", "opacity": 0.3, "blur": 0.01, "dy": 0.003 },
+      "opacity": [[1.15, 0], [2.0, 1, "ease_out"], [3.6, 1], [4.5, 0, "ease_in_out"]]
+    },
+    {
+      "type": "text",
+      "id": "date",
+      "field": "date",
+      "font": "IBM Plex Sans",
+      "weight": 400,
+      "size": 0.022,
+      "uppercase": true,
+      "tracking": 0.24,
+      "color": "#FFFFFFB3",
+      "max_width": 0.8,
+      "stack": "main",
+      "gap": 0.04,
+      "dy": [[1.45, 0.012], [2.4, 0, "ease_out"]],
+      "opacity": [[1.45, 0], [2.3, 1, "ease_out"], [3.6, 1], [4.5, 0, "ease_in_out"]]
+    }
+  ]
+}

@@ -1,46 +1,21 @@
-# Build from Rust Alpine for smaller image size
-FROM rust:1.75-alpine as builder
-
-# Install build dependencies
-RUN apk add --no-cache musl-dev pkgconfig openssl-dev
-
+# Build
+FROM rust:1.99-alpine AS builder
+RUN apk add --no-cache musl-dev
 WORKDIR /app
-
-# Copy manifests
-COPY Cargo.toml Cargo.lock ./
-
-# Copy source code
+COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
 COPY src ./src
+COPY templates ./templates
+RUN cargo build --release --locked --no-default-features --features cli,builtin-templates
 
-# Build release binary
-RUN cargo build --release --target x86_64-unknown-linux-musl
-RUN strip target/x86_64-unknown-linux-musl/release/ffmpeg-video-processor
-
-# Final stage
-FROM alpine:latest
-
-# Install FFmpeg and other runtime dependencies
-RUN apk add --no-cache ffmpeg libgcc
-
-# Create app user
-RUN addgroup -g 1000 app && \
-    adduser -D -u 1000 -G app app
-
-WORKDIR /app
-
-# Copy binary from builder
-COPY --from=builder /app/target/x86_64-unknown-linux-musl/release/ffmpeg-video-processor /usr/local/bin/
-
-# Copy default config
-COPY config.example.toml /etc/ffmpeg-video-processor/config.toml
-
-# Create directories for input/output
-RUN mkdir -p /input /output && \
-    chown -R app:app /input /output
-
+# Run
+FROM alpine:3
+RUN apk add --no-cache ffmpeg font-noto \
+    && addgroup -g 1000 app \
+    && adduser -D -u 1000 -G app app \
+    && mkdir -p /input /output \
+    && chown app:app /input /output
+COPY --from=builder /app/target/release/ffmpeg-video-processor /usr/local/bin/
 USER app
-
 VOLUME ["/input", "/output"]
-
 ENTRYPOINT ["ffmpeg-video-processor"]
 CMD ["--help"]
