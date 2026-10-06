@@ -384,6 +384,26 @@ fn unknown_builtin_is_an_error() {
     assert!(err.to_string().contains("clean"), "{err}");
 }
 
+/// The example in docs/templates.md must stay valid.
+#[test]
+fn documentation_example_parses() {
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/docs/templates.md");
+    let Ok(doc) = std::fs::read_to_string(path) else {
+        return; // docs are not part of packaged sources
+    };
+    let example = doc.split("## Complete example").nth(1).unwrap();
+    let json = example
+        .split("```json")
+        .nth(1)
+        .unwrap()
+        .split("```")
+        .next()
+        .unwrap();
+    let spec = spec::parse_template(json).unwrap();
+    assert_eq!(spec.name, "simple");
+    assert_eq!(spec.landscape.layers.len(), 4);
+}
+
 #[test]
 fn uppercase_follows_greek_convention() {
     assert_eq!(

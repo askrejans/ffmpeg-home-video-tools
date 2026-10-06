@@ -3,8 +3,8 @@
 
 use super::color::Rgba;
 use super::effects::{
-    GRAIN_TILES, Rng, apply_grain, blur_pixmap, darken_by_mask, hash_signed, hash2, over_px,
-    over_span, scale_span,
+    GRAIN_TILES, Rng, apply_grain, blur_pixmap, composite_upscaled, darken_by_mask, hash_signed,
+    hash2, over_px, over_span, scale_span,
 };
 use super::scene::{
     FillLayer, GrainLayer, Kind, LetterboxLayer, ParticlesLayer, ScanlinesLayer, Scene, ShapeLayer,
@@ -147,12 +147,15 @@ impl Offscreen {
         Transform::from_scale(1.0 / self.k, 1.0 / self.k).pre_translate(-self.x0, -self.y0)
     }
 
-    fn composite(&self, canvas: &mut PixmapMut<'_>, opacity: f32) {
+    /// Draw the buffer onto the canvas. With `tint`, only its alpha is used,
+    /// as coverage of that colour (glows and shadows).
+    fn composite(&self, canvas: &mut PixmapMut<'_>, opacity: f32, tint: Option<Rgba>) {
         let opacity = opacity.clamp(0.0, 1.0);
         if opacity <= 0.0 {
             return;
         }
         if self.k == 1.0 {
+            // Glyphs were already drawn in their final colour.
             let paint = PixmapPaint {
                 opacity,
                 ..PixmapPaint::default()
@@ -166,13 +169,24 @@ impl Offscreen {
                 None,
             );
         } else {
-            let paint = PixmapPaint {
+            let (dw, dh) = (canvas.width() as usize, canvas.height() as usize);
+            let (sw, sh) = (self.pm.width() as usize, self.pm.height() as usize);
+            composite_upscaled(
+                canvas.data_mut(),
+                dw,
+                dh,
+                self.pm.data(),
+                sw,
+                sh,
+                self.x0 as usize,
+                self.y0 as usize,
+                self.k as usize,
                 opacity,
-                quality: FilterQuality::Bilinear,
-                ..PixmapPaint::default()
-            };
-            let tf = Transform::from_translate(self.x0, self.y0).pre_scale(self.k, self.k);
-            canvas.draw_pixmap(0, 0, self.pm.as_ref(), &paint, tf, None);
+                tint.map(|c| {
+                    let [r, g, b] = c.to_u8();
+                    [r as u32, g as u32, b as u32]
+                }),
+            );
         }
     }
 
@@ -590,7 +604,7 @@ impl Scene {
             blur_pixmap(&mut off.pm, blur / k);
         }
         off.apply_reveal(bounds, reveal, tl.reveal_from, tl.reveal_softness);
-        off.composite(canvas, o);
+        off.composite(canvas, o, None);
     }
 
     /// Glow, drop shadow or sweep bloom: a blurred, tinted copy of the
@@ -615,13 +629,14 @@ impl Scene {
             return;
         };
         let pre = off.local().pre_translate(offset.0, offset.1);
-        fill_glyphs(&mut off.pm.as_mut(), placed, &tl.shapes, color, 1.0, pre);
+        let opaque = Rgba { a: 1.0, ..color };
+        fill_glyphs(&mut off.pm.as_mut(), placed, &tl.shapes, opaque, 1.0, pre);
         blur_pixmap(&mut off.pm, sigma / k);
         if let Some(band) = band {
             off.apply_band(band);
         }
         off.apply_reveal(b, mask.0, mask.1, mask.2);
-        off.composite(canvas, alpha);
+        off.composite(canvas, alpha * color.a, Some(opaque));
     }
 
     fn draw_shape(&self, canvas: &mut PixmapMut<'_>, sh: &ShapeLayer, t: f64, o: f32) {

@@ -524,6 +524,12 @@ fn prepare_text(
             t.font
         ))
     })?;
+    // A family without an italic face gets a synthetic slant instead.
+    let synthetic_slant = if t.italic && primary.style == cosmic_text::fontdb::Style::Normal {
+        12.0
+    } else {
+        0.0
+    };
     let mut chain: Vec<Face> = vec![primary.clone()];
     for fam in t.fallback.iter().chain(&ctx.spec.fallback_fonts) {
         if let Some(f) = fonts.resolve(fam, t.weight, t.italic)
@@ -636,7 +642,7 @@ fn prepare_text(
         shapes,
         color: t.color.clone(),
         tracking: t.tracking.clone(),
-        skew: -(t.skew.to_radians().tan()),
+        skew: -((t.skew + synthetic_slant).to_radians().tan()),
         blur: t.blur.clone(),
         reveal: t.reveal.clone(),
         reveal_from: t.reveal_from,

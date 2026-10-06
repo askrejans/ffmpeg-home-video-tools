@@ -259,6 +259,104 @@ pub(crate) fn apply_grain(
     }
 }
 
+/// Bilinearly upscale `src` (premultiplied RGBA, `sw` x `sh`) by the integer
+/// factor `k` and source-over it onto `dst` (`dw` x `dh`) with its top-left
+/// corner at (`x0`, `y0`). With `tint`, only the source alpha is used, as the
+/// coverage of that straight-alpha colour (glows and shadows).
+///
+/// This replaces a generic filtered image draw: the separable integer
+/// interpolation is several times faster for the large, soft overlays it is
+/// used for.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn composite_upscaled(
+    dst: &mut [u8],
+    dw: usize,
+    dh: usize,
+    src: &[u8],
+    sw: usize,
+    sh: usize,
+    x0: usize,
+    y0: usize,
+    k: usize,
+    opacity: f32,
+    tint: Option<[u32; 3]>,
+) {
+    let op = (opacity.clamp(0.0, 1.0) * 256.0).round() as u32;
+    if op == 0 || sw == 0 || sh == 0 || k == 0 || x0 >= dw || y0 >= dh {
+        return;
+    }
+    let out_w = (sw * k).min(dw - x0);
+    let out_h = (sh * k).min(dh - y0);
+    // An output pixel centre maps to (l + 0.5) / k - 0.5 in source pixels.
+    let sample = |l: usize, n: usize| -> (usize, usize, u32) {
+        let p = (l as f32 + 0.5) / k as f32 - 0.5;
+        if p <= 0.0 {
+            return (0, 0, 0);
+        }
+        let i = p as usize;
+        if i + 1 >= n {
+            return (n - 1, n - 1, 0);
+        }
+        (i, i + 1, ((p - i as f32) * 256.0).round() as u32)
+    };
+    let cols: Vec<(usize, usize, u32)> = (0..out_w).map(|l| sample(l, sw)).collect();
+    let channels = if tint.is_some() { 1 } else { 4 };
+    let mut row = vec![0u32; sw * channels];
+    for ly in 0..out_h {
+        let (j0, j1, wy) = sample(ly, sh);
+        let r0 = &src[j0 * sw * 4..(j0 + 1) * sw * 4];
+        let r1 = &src[j1 * sw * 4..(j1 + 1) * sw * 4];
+        // Vertical interpolation of one source row (values scaled by 256).
+        let mut any = 0u32;
+        if tint.is_some() {
+            for (i, v) in row.iter_mut().enumerate() {
+                *v = r0[i * 4 + 3] as u32 * (256 - wy) + r1[i * 4 + 3] as u32 * wy;
+                any |= *v;
+            }
+        } else {
+            for (i, v) in row.iter_mut().enumerate() {
+                *v = r0[i] as u32 * (256 - wy) + r1[i] as u32 * wy;
+                any |= *v;
+            }
+        }
+        if any == 0 {
+            continue;
+        }
+        let start = ((y0 + ly) * dw + x0) * 4;
+        let line = &mut dst[start..start + out_w * 4];
+        let pixels = line.as_chunks_mut::<4>().0.iter_mut().zip(&cols);
+        match tint {
+            Some(rgb) => {
+                for (px, &(c0, c1, wx)) in pixels {
+                    let a = (row[c0] * (256 - wx) + row[c1] * wx) >> 16;
+                    let a = (a * op) >> 8;
+                    if a != 0 {
+                        over_px(px, rgb, a);
+                    }
+                }
+            }
+            None => {
+                for (px, &(c0, c1, wx)) in pixels {
+                    let ch = |c: usize| {
+                        let v = (row[c0 * 4 + c] * (256 - wx) + row[c1 * 4 + c] * wx) >> 16;
+                        (v * op) >> 8
+                    };
+                    let sa = ch(3);
+                    if sa == 0 {
+                        continue;
+                    }
+                    let ia = 255 - sa;
+                    let na = (sa + div255(px[3] as u32 * ia)).min(255);
+                    px[0] = (ch(0) + div255(px[0] as u32 * ia)).min(na) as u8;
+                    px[1] = (ch(1) + div255(px[1] as u32 * ia)).min(na) as u8;
+                    px[2] = (ch(2) + div255(px[2] as u32 * ia)).min(na) as u8;
+                    px[3] = na as u8;
+                }
+            }
+        }
+    }
+}
+
 /// Darken by a per-pixel mask (black source-over), with `k` (0..=256)
 /// scaling the mask.
 pub(crate) fn darken_by_mask(data: &mut [u8], mask: &[u8], k: u16) {
