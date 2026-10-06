@@ -23,7 +23,7 @@ You need **FFmpeg 6.1 or newer** (`ffmpeg` and `ffprobe`). Any build works, incl
 # From source (Rust 1.99+)
 cargo install --git https://github.com/askrejans/ffmpeg-home-video-tools
 
-# Or download a binary from the Releases page, or use Docker:
+# Or build the Docker image from the source:
 docker build -t home-video-tools .
 docker run --rm -v "$PWD/in:/input" -v "$PWD/out:/output" home-video-tools render /input -o /output/movie.mp4 --no-tui
 ```
