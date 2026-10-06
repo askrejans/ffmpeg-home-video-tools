@@ -405,10 +405,10 @@ fn build(dir: &Path) {
     std::fs::write(dir.join("._landscape.mp4"), b"AppleDouble").expect("appledouble");
     std::fs::write(dir.join("GOPR0001.LRV"), &landscape).expect("lrv");
     std::fs::write(dir.join("notes.txt"), b"hello").expect("notes");
-    // A name with quotes, diacritics and emoji.
+    // A name with an apostrophe, brackets, diacritics and emoji.
     std::fs::copy(
         dir.join("landscape.mp4"),
-        dir.join("it's \"Jūrmala\" 🎬.mp4"),
+        dir.join("it's Jūrmala 🎬 (ā).mp4"),
     )
     .expect("unicode");
     std::fs::remove_file(dir.join("cover.png")).expect("cleanup");
@@ -434,7 +434,7 @@ pub const VIDEOS: &[&str] = &[
     "with_cover.mp4",
     "odd_size.mkv",
     "tiny.avi",
-    "it's \"Jūrmala\" 🎬.mp4",
+    "it's Jūrmala 🎬 (ā).mp4",
 ];
 
 /// ffprobe one stream entry of a file, e.g. `("v:0", "width")`.

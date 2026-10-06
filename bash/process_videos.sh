@@ -2,6 +2,10 @@
 ##
 # Master script to process videos using various sub-scripts.
 # Production-hardened version with comprehensive error handling and logging.
+#
+# Legacy: these scripts are kept for reference. The Rust tool
+# (`ffmpeg-video-processor`) is the maintained implementation and handles
+# rotation, interlacing, HDR, transitions and loudness that these do not.
 ##
 
 # Strict error handling

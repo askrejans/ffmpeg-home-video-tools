@@ -53,7 +53,8 @@ for file in "${files[@]}"; do
     temp_output="${output_video_path}preprocessed/padded_${base_filename}"
 
     # Overlay the original video on top of a more blurred background
-    ffmpeg -y -i "$file" -filter_complex "[0]scale=1920*2:1080*2,boxblur=luma_radius=min(h\,w)/20:luma_power=1:chroma_radius=min(cw\,ch)/20:chroma_power=1[bg];[0]scale=-1:1080[ov];[bg][ov]overlay=(W-w)/2:(H-h)/2:format=yuv444,crop=w=1920:h=1080" \
+    # gblur is available in every FFmpeg build (boxblur needs a GPL build).
+    ffmpeg -y -i "$file" -filter_complex "[0]split[a][b];[a]scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,gblur=sigma=40[bg];[b]scale=1920:1080:force_original_aspect_ratio=decrease:force_divisible_by=2[ov];[bg][ov]overlay=(W-w)/2:(H-h)/2,setsar=1" \
       -c:v libx264 -preset veryfast -crf 23 -c:a aac -b:a 320k -movflags +faststart \
       "$temp_output" -hide_banner -loglevel error || {
       echo "[PAD]   ERROR: Failed to pad video" >&2

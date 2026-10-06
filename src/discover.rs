@@ -355,7 +355,7 @@ mod tests {
                 p.strip_prefix(dir.path())
                     .unwrap()
                     .to_string_lossy()
-                    .into_owned()
+                    .replace('\\', "/")
             })
             .collect();
         assert_eq!(names, ["clip2.mp4", "clip10.mp4", "Day 2/b.mov"]);
