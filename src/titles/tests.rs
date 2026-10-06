@@ -425,7 +425,7 @@ fn field_values_are_cleaned_and_capped() {
 ///
 /// Environment: `TITLE_PREVIEW_DIR` (output directory), `TITLE_PREVIEW_TEMPLATES`
 /// (comma-separated built-in names or template directories), `TITLE_PREVIEW_SETS`
-/// (`en`, `lv`, `title-only`, `ru`, `world`) and `TITLE_PREVIEW_TIMES` (seconds, e.g. `0.5,2.8`).
+/// (`en`, `lv`, `title-only`, `ru`, `world`, `long`) and `TITLE_PREVIEW_TIMES` (seconds, e.g. `0.5,2.8`).
 #[cfg(feature = "builtin-templates")]
 #[test]
 #[ignore]
@@ -461,8 +461,23 @@ fn export_preview_frames() {
                 ("date", "2026"),
             ]),
         ),
+        (
+            "long",
+            fields(&[
+                (
+                    "title",
+                    "The longest and most wonderful summer holiday of all time",
+                ),
+                (
+                    "subtitle",
+                    "Three weeks by the sea with grandparents, cousins, two dogs and one very old car",
+                ),
+                ("date", "From the 1st to the 21st of August 2026"),
+            ]),
+        ),
     ];
-    // The "world" set needs installed fonts, so it is only rendered on request.
+    // "world" needs installed fonts and "long" is a stress test, so both are
+    // only rendered on request.
     let only_sets = std::env::var("TITLE_PREVIEW_SETS")
         .ok()
         .or_else(|| Some("en,lv,title-only,ru".to_string()));
