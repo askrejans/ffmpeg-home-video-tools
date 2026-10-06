@@ -10,7 +10,7 @@ repository = "https://github.com/askrejans/ffmpeg-home-video-tools"
 readme = "README.md"
 keywords = ["ffmpeg", "video", "concatenate", "transitions", "home-video"]
 categories = ["multimedia::video", "command-line-utilities"]
-include = ["src/**", "templates/**", "tests/**", "Cargo.toml", "Cargo.lock", "README.md", "LICENSE", "CHANGELOG.md"]
+include = ["src/**", "templates/**", "tests/**", "docs/**", "Cargo.toml", "Cargo.lock", "README.md", "LICENSE", "CHANGELOG.md"]
 
 [lib]
 name = "ffmpeg_video_processor"
