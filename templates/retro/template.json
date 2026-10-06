@@ -1,0 +1,138 @@
+{
+  "format": 1,
+  "name": "retro",
+  "description": "1980s home-video look: VCR on-screen display, camcorder date stamp, scanlines and a tracking glitch that settles into a bold title.",
+  "duration": 5.0,
+  "background": { "kind": "footage", "dim": 0.42, "blur": 0.8 },
+  "fonts": ["../fonts"],
+  "fallback_fonts": ["Play"],
+  "safe_area": { "x": 0.07, "y": 0.09 },
+  "stacks": { "main": { "y": 0.5, "valign": "middle" } },
+  "portrait": {
+    "safe_area": { "x": 0.08, "y": 0.13 },
+    "stacks": { "main": { "y": 0.47 } }
+  },
+  "fields": [
+    { "name": "title", "label": "Title", "max_chars": 60, "required": true },
+    { "name": "subtitle", "label": "Subtitle", "max_chars": 80 },
+    { "name": "date", "label": "Date", "max_chars": 40 }
+  ],
+  "layers": [
+    {
+      "type": "scanlines",
+      "spacing": 0.0042,
+      "thickness": 0.42,
+      "strength": 0.2
+    },
+    {
+      "type": "vignette",
+      "strength": 0.5,
+      "radius": 0.3,
+      "softness": 0.6
+    },
+    {
+      "type": "noise_band",
+      "y": [[0, -0.05], [1.3, 1.1]],
+      "height": 0.08,
+      "intensity": 0.5,
+      "seed": 3,
+      "end": 1.35
+    },
+    {
+      "type": "triangle",
+      "id": "osd_icon",
+      "frame": "safe",
+      "x": 0,
+      "y": 0,
+      "align": "left",
+      "valign": "top",
+      "width": 0.03,
+      "height": 0.035,
+      "color": "#F4F4F0",
+      "opacity": [[0.15, 0], [0.15, 1], [2.5, 1], [2.5, 0]]
+    },
+    {
+      "type": "text",
+      "id": "osd_play",
+      "text": "PLAY",
+      "font": "VT323",
+      "size": 0.064,
+      "color": "#F4F4F0",
+      "frame": "safe",
+      "x": 0,
+      "y": 0,
+      "dx": 0.046,
+      "align": "left",
+      "valign": "top",
+      "tracking": 0.06,
+      "shadow": { "color": "#000000", "opacity": 0.8, "blur": 0.0012, "dx": 0.0035, "dy": 0.0035 },
+      "opacity": [[0.15, 0], [0.15, 1], [2.5, 1], [2.5, 0]]
+    },
+    {
+      "type": "text",
+      "id": "title",
+      "field": "title",
+      "font": "Play",
+      "weight": 700,
+      "size": 0.096,
+      "uppercase": true,
+      "skew": 7,
+      "color": "#F7F2E6",
+      "max_width": 0.84,
+      "max_lines": 2,
+      "line_height": 1.1,
+      "stack": "main",
+      "tracking": 0.02,
+      "chroma": {
+        "offset": [[0.45, 0.014], [1.7, 0.0035, "ease_out"]],
+        "opacity": 0.75
+      },
+      "jitter": { "amount": [[0.45, 0.024], [1.6, 0, "ease_out"]], "rate": 16, "seed": 5 },
+      "glow": { "color": "#FFE9D6", "opacity": 0.22, "radius": 0.014 },
+      "opacity": [[0.45, 0], [0.5, 0.8], [0.58, 0.25], [0.66, 1], [3.7, 1], [4.6, 0, "ease_in_out"]]
+    },
+    {
+      "type": "text",
+      "id": "subtitle",
+      "field": "subtitle",
+      "font": "Play",
+      "weight": 400,
+      "size": 0.036,
+      "uppercase": true,
+      "color": "#F7F2E6",
+      "max_width": 0.8,
+      "max_lines": 2,
+      "line_height": 1.3,
+      "stack": "main",
+      "gap": 0.05,
+      "tracking": 0.12,
+      "chroma": { "offset": 0.0025, "opacity": 0.55 },
+      "opacity": [[1.2, 0], [1.25, 0.6], [1.32, 0.2], [1.4, 0.95], [3.7, 0.95], [4.6, 0, "ease_in_out"]]
+    },
+    {
+      "type": "text",
+      "id": "date",
+      "field": "date",
+      "font": "VT323",
+      "size": 0.062,
+      "uppercase": true,
+      "color": "#FFC94A",
+      "frame": "safe",
+      "x": 0,
+      "y": 1,
+      "align": "left",
+      "valign": "bottom",
+      "max_width": 0.7,
+      "tracking": 0.04,
+      "shadow": { "color": "#1A0E00", "opacity": 0.85, "blur": 0.0012, "dx": 0.0035, "dy": 0.0035 },
+      "opacity": [[0.15, 0], [0.15, 1], [3.8, 1], [4.6, 0, "ease_in_out"]]
+    },
+    {
+      "type": "grain",
+      "amount": 0.06,
+      "size": 0.0016,
+      "fps": 30,
+      "seed": 23
+    }
+  ]
+}
