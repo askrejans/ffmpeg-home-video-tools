@@ -1,0 +1,113 @@
+{
+  "format": 1,
+  "name": "cinematic",
+  "description": "Widescreen feature-film opener: letterbox bars slide in, a serif title comes into focus and slowly tracks out with a soft glow and a passing light sweep, over film grain.",
+  "duration": 5.0,
+  "background": { "kind": "footage", "dim": 0.5, "blur": 1.6 },
+  "fonts": ["../fonts"],
+  "fallback_fonts": ["IBM Plex Sans"],
+  "safe_area": { "x": 0.1, "y": 0.16 },
+  "stacks": { "main": { "y": 0.5, "valign": "middle" } },
+  "portrait": {
+    "safe_area": { "x": 0.08, "y": 0.14 },
+    "stacks": { "main": { "y": 0.47 } }
+  },
+  "fields": [
+    { "name": "title", "label": "Title", "max_chars": 60, "required": true },
+    { "name": "subtitle", "label": "Subtitle", "max_chars": 80 },
+    { "name": "date", "label": "Date", "max_chars": 40 }
+  ],
+  "layers": [
+    {
+      "type": "vignette",
+      "strength": 0.62,
+      "radius": 0.22,
+      "softness": 0.8
+    },
+    {
+      "type": "letterbox",
+      "aspect": 2.39,
+      "color": "#000000",
+      "progress": [[0, 0], [1.2, 1, "ease_in_out"]],
+      "portrait": { "aspect": null, "size": 0.075 }
+    },
+    {
+      "type": "text",
+      "id": "title",
+      "field": "title",
+      "font": "Noto Serif Display",
+      "weight": 300,
+      "size": 0.078,
+      "uppercase": true,
+      "color": "#E6DFD2",
+      "max_width": 0.8,
+      "max_lines": 2,
+      "line_height": 1.2,
+      "stack": "main",
+      "tracking": [[0.3, 0.14], [5.0, 0.3]],
+      "blur": [[0.3, 0.014], [2.0, 0, "ease_out"]],
+      "glow": {
+        "color": "#FFF2DC",
+        "opacity": [[0, 0.22], [2.2, 0.22], [2.75, 0.4, "ease_in_out"], [3.4, 0.22, "ease_in_out"]],
+        "radius": 0.024
+      },
+      "sweep": {
+        "progress": [[2.0, 0], [3.4, 1, "ease_in_out"]],
+        "angle": 24,
+        "width": 0.16,
+        "opacity": 0.9
+      },
+      "opacity": [[0.3, 0], [2.0, 1, "ease_out"], [3.7, 1], [4.6, 0, "ease_in_out"]]
+    },
+    {
+      "type": "rect",
+      "stack": "main",
+      "gap": 0.048,
+      "width": 0.045,
+      "height": 0.0016,
+      "color": "#EEE8DD",
+      "reveal": [[1.3, 0], [2.2, 1, "ease_in_out"]],
+      "reveal_from": "center",
+      "opacity": [[0, 0.7], [3.6, 0.7], [4.4, 0, "ease_in_out"]]
+    },
+    {
+      "type": "text",
+      "id": "subtitle",
+      "field": "subtitle",
+      "font": "IBM Plex Sans",
+      "weight": 300,
+      "size": 0.026,
+      "uppercase": true,
+      "color": "#ECE6DA",
+      "max_width": 0.78,
+      "max_lines": 2,
+      "line_height": 1.5,
+      "stack": "main",
+      "gap": 0.048,
+      "tracking": [[1.3, 0.3], [5.0, 0.36]],
+      "opacity": [[1.3, 0], [2.4, 0.92, "ease_out"], [3.6, 0.92], [4.5, 0, "ease_in_out"]]
+    },
+    {
+      "type": "text",
+      "id": "date",
+      "field": "date",
+      "font": "IBM Plex Sans",
+      "weight": 400,
+      "size": 0.019,
+      "uppercase": true,
+      "color": "#ECE6DA",
+      "max_width": 0.7,
+      "stack": "main",
+      "gap": 0.03,
+      "tracking": [[1.6, 0.4], [5.0, 0.46]],
+      "opacity": [[1.6, 0], [2.7, 0.65, "ease_out"], [3.6, 0.65], [4.5, 0, "ease_in_out"]]
+    },
+    {
+      "type": "grain",
+      "amount": 0.07,
+      "size": 0.0012,
+      "fps": 24,
+      "seed": 11
+    }
+  ]
+}
