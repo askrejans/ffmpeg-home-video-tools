@@ -38,12 +38,16 @@ pub struct TitleTemplate {
 impl TitleTemplate {
     /// Load a template from a directory containing `template.json`.
     pub fn load(_dir: &Path) -> Result<Self> {
-        Err(Error::Template("title templates are not implemented yet".into()))
+        Err(Error::Template(
+            "title templates are not implemented yet".into(),
+        ))
     }
 
     /// Load one of the templates bundled with the library.
     pub fn builtin(name: &str) -> Result<Self> {
-        Err(Error::Template(format!("unknown built-in template {name:?}")))
+        Err(Error::Template(format!(
+            "unknown built-in template {name:?}"
+        )))
     }
 
     /// Names accepted by [`TitleTemplate::builtin`].
@@ -91,7 +95,9 @@ impl TitleRenderer {
         _height: u32,
         _fps: u32,
     ) -> Result<Self> {
-        Err(Error::Template("title templates are not implemented yet".into()))
+        Err(Error::Template(
+            "title templates are not implemented yet".into(),
+        ))
     }
 
     /// Number of frames in the intro: `round(duration * fps)`, at least 1.

@@ -75,7 +75,7 @@ impl Error {
         }
     }
 
-    pub(crate) fn io(context: impl Into<String>, source: std::io::Error) -> Self {
+    pub fn io(context: impl Into<String>, source: std::io::Error) -> Self {
         Error::Io {
             context: context.into(),
             source,
