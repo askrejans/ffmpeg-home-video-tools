@@ -1,69 +1,72 @@
 [package]
 name = "ffmpeg-video-processor"
-version = "0.2.1"
+version = "0.3.0"
 edition = "2024"
-authors = ["askrejans"]
-description = "FFmpeg video processing tool"
-license = "MIT"
+rust-version = "1.99"
+authors = ["Arvis Skrējāns"]
+description = "Join, trim and normalise home videos into one polished movie with FFmpeg"
+license = "GPL-3.0-only"
 repository = "https://github.com/askrejans/ffmpeg-home-video-tools"
+readme = "README.md"
+keywords = ["ffmpeg", "video", "concatenate", "transitions", "home-video"]
+categories = ["multimedia::video", "command-line-utilities"]
+include = ["src/**", "templates/**", "tests/**", "Cargo.toml", "Cargo.lock", "README.md", "LICENSE", "CHANGELOG.md"]
+
+[lib]
+name = "ffmpeg_video_processor"
+path = "src/lib.rs"
 
 [[bin]]
 name = "ffmpeg-video-processor"
 path = "src/main.rs"
+required-features = ["cli"]
+
+[features]
+default = ["cli", "tui", "builtin-templates"]
+# Command-line interface with progress bars.
+cli = ["dep:clap", "dep:indicatif", "dep:tracing-subscriber"]
+# Interactive terminal UI for renders (implies the CLI).
+tui = ["cli", "dep:ratatui", "dep:crossterm"]
+# Embed the bundled title templates and their fonts in the library.
+builtin-templates = []
 
 [dependencies]
-# Async runtime
-tokio = { version = "1.52.0", features = ["full"] }
-
-# CLI framework
-clap = { version = "4.6.0", features = ["derive", "cargo", "env"] }
-
-# TUI framework
-ratatui = "0.30.0"
-crossterm = "0.29"
-
-# Error handling
-thiserror = "2.0.18"
-anyhow = "1.0.102"
-
-# Logging and tracing
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+thiserror = "2.0.21"
 tracing = "0.1.44"
-tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt", "json"] }
-tracing-appender = "0.2.4"
-
-# Serialization
-serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.149"
-toml = "1.1.2+spec-1.1.0"
-
-# File system operations
-walkdir = "2.5"
+chrono = { version = "0.4.45", default-features = false, features = ["std", "clock", "serde"] }
+walkdir = "2.5.0"
 tempfile = "3.27.0"
-dirs = "6.0"
+which = "8.0.6"
+rayon = "1.12.0"
+tiny-skia = "0.12.0"
+cosmic-text = "0.19.0"
+ebur128 = "0.1.10"
+fs4 = "1.1.0"
 
-# Date/time handling
-chrono = { version = "0.4.44", features = ["serde"] }
+clap = { version = "4.6.7", features = ["derive"], optional = true }
+indicatif = { version = "0.18.6", optional = true }
+tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt"], optional = true }
+ratatui = { version = "0.30.2", optional = true }
+crossterm = { version = "0.29.0", optional = true }
 
-# Process management
-regex = "1.12.3"
-lazy_static = "1.5"
-which = "8.0.2"
-
-# Progress tracking
-indicatif = "0.18.4"
-atty = "0.2.14"
-
-# System monitoring
-sysinfo = "0.38.4"
+[target.'cfg(unix)'.dependencies]
+command-fds = "0.3.3"
 
 [dev-dependencies]
-mockall = "0.14"
-assert_cmd = "2.2.0"
+assert_cmd = "2.2.2"
 predicates = "3.1.4"
-pretty_assertions = "1.4.1"
 
 [profile.release]
 opt-level = 3
 lto = true
 codegen-units = 1
 strip = true
+
+# Pixel loops are unusably slow without optimisation; keep tests fast.
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
