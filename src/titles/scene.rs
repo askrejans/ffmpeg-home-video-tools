@@ -277,6 +277,32 @@ pub(crate) fn clean_field(raw: &str, max_chars: usize) -> String {
     cut
 }
 
+/// Upper-case for display. All-caps Greek drops the tonos accent, as is the
+/// typographic convention.
+pub(crate) fn display_uppercase(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut after_greek = false;
+    for c in s.to_uppercase().chars() {
+        if c == '\u{0301}' && after_greek {
+            continue;
+        }
+        let c = match c {
+            'Ά' => 'Α',
+            'Έ' => 'Ε',
+            'Ή' => 'Η',
+            'Ί' => 'Ι',
+            'Ό' => 'Ο',
+            'Ύ' => 'Υ',
+            'Ώ' => 'Ω',
+            _ => c,
+        };
+        after_greek = matches!(c, '\u{0370}'..='\u{03FF}' | '\u{1F00}'..='\u{1FFF}')
+            || (after_greek && c == '\u{0308}');
+        out.push(c);
+    }
+    out
+}
+
 fn rgb_u32(c: Rgba) -> [u32; 3] {
     let [r, g, b] = c.to_u8();
     [r as u32, g as u32, b as u32]
@@ -365,7 +391,7 @@ pub(crate) fn build_scene(
                 (None, None) => String::new(),
             };
             if t.uppercase {
-                s = s.to_uppercase();
+                s = display_uppercase(&s);
             }
             on &= !s.is_empty();
             text = Some(s);

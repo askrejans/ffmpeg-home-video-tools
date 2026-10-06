@@ -1,6 +1,5 @@
 use super::scene::Kind;
 use super::*;
-use std::time::Instant;
 
 fn fields(pairs: &[(&str, &str)]) -> BTreeMap<String, String> {
     pairs
@@ -9,6 +8,7 @@ fn fields(pairs: &[(&str, &str)]) -> BTreeMap<String, String> {
         .collect()
 }
 
+#[cfg_attr(not(feature = "builtin-templates"), allow(dead_code))]
 fn sample_fields() -> BTreeMap<String, String> {
     fields(&[
         ("title", "Summer at the Lake"),
@@ -250,12 +250,14 @@ const MINIMAL: &str = r##"{
   ]
 }"##;
 
-#[cfg(feature = "builtin-templates")]
-fn plex_font() -> &'static [u8] {
-    builtin::FONTS[1]
+fn plex_font() -> Vec<u8> {
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/templates/fonts/IBMPlexSans-Regular.ttf"
+    );
+    std::fs::read(path).unwrap()
 }
 
-#[cfg(feature = "builtin-templates")]
 #[test]
 fn load_custom_template_from_disk() {
     let dir = tempfile::tempdir().unwrap();
@@ -300,13 +302,13 @@ fn load_custom_template_from_disk() {
             },
         ]
     );
-    let r = TitleRenderer::new(&tpl, &fields(&[("title", "Hi")]), 400, 300, 10).unwrap();
+    let r = TitleRenderer::new(&tpl, &fields(&[("title", "Hi ģ")]), 400, 300, 10).unwrap();
     assert_eq!(r.frame_count(), 20);
-    assert_eq!(
-        text_layers(&r).len(),
-        1,
-        "empty optional field layer is skipped"
-    );
+    assert!(!r.scene.uses_system_fonts);
+    let layers = text_layers(&r);
+    assert_eq!(layers.len(), 1, "empty optional field layer is skipped");
+    assert_eq!(layers[0].text, "Hi ģ");
+    assert!(layers[0].glyphs.iter().all(|g| g.glyph_id != 0));
     let mut buf = vec![0u8; 400 * 300 * 4];
     for i in 0..r.frame_count() {
         r.render_frame(i, &mut buf);
@@ -358,15 +360,27 @@ fn unknown_builtin_is_an_error() {
 }
 
 #[test]
+fn uppercase_follows_greek_convention() {
+    assert_eq!(
+        scene::display_uppercase("Ελλάδα ΐ"),
+        "ΕΛΛΑΔΑ \u{399}\u{308}"
+    );
+    assert_eq!(scene::display_uppercase("ģimene Ёлка"), "ĢIMENE ЁЛКА");
+}
+
+#[test]
 fn field_values_are_cleaned_and_capped() {
     assert_eq!(scene::clean_field("  a \n b\t c ", 20), "a b c");
     assert_eq!(scene::clean_field("abcdefghij", 5), "abcd…");
     assert_eq!(scene::clean_field("ābčdēfģ", 7), "ābčdēfģ");
 }
 
-/// Writes PNG frames of every built-in template for visual review:
+/// Writes PNG frames of templates for visual review:
 /// `cargo test --release --lib titles::tests::export_preview_frames -- --ignored --nocapture`
-/// (set `TITLE_PREVIEW_DIR` to choose the output directory).
+///
+/// Environment: `TITLE_PREVIEW_DIR` (output directory), `TITLE_PREVIEW_TEMPLATES`
+/// (comma-separated built-in names or template directories), `TITLE_PREVIEW_SETS`
+/// (`en`, `lv`, `title-only`) and `TITLE_PREVIEW_TIMES` (seconds, e.g. `0.5,2.8`).
 #[cfg(feature = "builtin-templates")]
 #[test]
 #[ignore]
@@ -409,7 +423,18 @@ fn export_preview_frames() {
         .ok()
         .map(|v| v.split(',').filter_map(|t| t.trim().parse().ok()).collect());
     for name in &names {
-        let tpl = TitleTemplate::builtin(name).unwrap();
+        // Entries containing a path separator are template directories.
+        let tpl = if name.contains('/') {
+            TitleTemplate::load(Path::new(name)).unwrap()
+        } else {
+            TitleTemplate::builtin(name).unwrap()
+        };
+        let name = tpl.name().to_string();
+        let backdrop = match tpl.background() {
+            TitleBackground::Solid { r, g, b } => tiny_skia::Color::from_rgba8(r, g, b, 255),
+            // Mid-grey stand-in for footage so dark effects stay visible.
+            TitleBackground::Footage { .. } => tiny_skia::Color::from_rgba8(70, 82, 96, 255),
+        };
         for (set, f) in &sets {
             for (w, h) in sizes {
                 let r = TitleRenderer::new(&tpl, f, w, h, 25).unwrap();
@@ -431,8 +456,7 @@ fn export_preview_frames() {
                 };
                 for (label, idx) in frames {
                     let mut pm = tiny_skia::Pixmap::new(w, h).unwrap();
-                    // Mid-grey "footage" so dark effects stay visible.
-                    pm.fill(tiny_skia::Color::from_rgba8(70, 82, 96, 255));
+                    pm.fill(backdrop);
                     let mut buf = vec![0u8; (w * h * 4) as usize];
                     r.render_frame(idx, &mut buf);
                     let overlay = tiny_skia::PixmapRef::from_bytes(&buf, w, h).unwrap();
@@ -461,16 +485,16 @@ fn bench_frame_times() {
     for name in TitleTemplate::builtin_names() {
         let tpl = TitleTemplate::builtin(name).unwrap();
         for (w, h) in [(1920u32, 1080u32), (3840, 2160)] {
-            let t0 = Instant::now();
+            let t0 = std::time::Instant::now();
             let r = TitleRenderer::new(&tpl, &sample_fields(), w, h, 30).unwrap();
             let setup = t0.elapsed();
             let mut buf = vec![0u8; (w * h * 4) as usize];
             let n = r.frame_count();
-            let t1 = Instant::now();
+            let t1 = std::time::Instant::now();
             let mut worst = std::time::Duration::ZERO;
             let mut count = 0;
             for idx in (0..n).step_by(5) {
-                let t = Instant::now();
+                let t = std::time::Instant::now();
                 r.render_frame(idx, &mut buf);
                 worst = worst.max(t.elapsed());
                 count += 1;

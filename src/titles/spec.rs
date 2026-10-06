@@ -2,7 +2,7 @@
 //!
 //! See `docs/templates.md` for the user-facing description of every key.
 
-use super::anim::Anim;
+use super::anim::{Anim, Easing, with_default_ease};
 use super::color::Rgba;
 use super::{FieldSpec, TitleBackground};
 use serde::Deserialize;
@@ -793,14 +793,23 @@ fn parse_layer(value: &Value) -> Result<LayerSpec, String> {
         Some(_) => return Err("\"type\" must be a string".into()),
         None => return Err("missing \"type\"".into()),
     };
+    // A layer-wide default easing for keyframes that do not name one.
+    let ease = match obj.remove("ease") {
+        Some(v) => Easing::parse(&v)?,
+        None => Easing::Linear,
+    };
+    with_default_ease(ease, || parse_layer_body(&ty, obj))
+}
+
+fn parse_layer_body(ty: &str, mut obj: Map<String, Value>) -> Result<LayerSpec, String> {
     let common: Common = from_map(take_keys(&mut obj, COMMON_KEYS))?;
-    let kind = match ty.as_str() {
+    let kind = match ty {
         "text" => {
             let placement = from_map(take_keys(&mut obj, PLACEMENT_KEYS))?;
             LayerKind::Text(Box::new(from_map(obj)?), placement)
         }
         "rect" | "line" | "ellipse" | "triangle" => {
-            let shape = match ty.as_str() {
+            let shape = match ty {
                 "ellipse" => ShapeKind::Ellipse,
                 "triangle" => ShapeKind::Triangle,
                 _ => ShapeKind::Rect,
@@ -1214,6 +1223,25 @@ mod tests {
         let glow = port.glow.as_ref().unwrap();
         assert_eq!(glow.radius, 0.03);
         assert_eq!(glow.opacity.at(0.0), 0.2);
+    }
+
+    #[test]
+    fn layer_ease_is_the_keyframe_default() {
+        let json = minimal(
+            r#"[{"type": "vignette", "ease": "ease_in", "opacity": [[0, 0], [1, 1]]},
+                {"type": "vignette", "ease": "ease_in", "opacity": [[0, 0], [1, 1, "linear"]]},
+                {"type": "vignette", "opacity": [[0, 0], [1, 1]]}]"#,
+        );
+        let spec = parse_template(&json).unwrap();
+        let at_half: Vec<f32> = spec
+            .landscape
+            .layers
+            .iter()
+            .map(|l| l.common.opacity.at(0.5))
+            .collect();
+        assert!((at_half[0] - 0.125).abs() < 1e-5);
+        assert!((at_half[1] - 0.5).abs() < 1e-5);
+        assert!((at_half[2] - 0.5).abs() < 1e-5);
     }
 
     #[test]

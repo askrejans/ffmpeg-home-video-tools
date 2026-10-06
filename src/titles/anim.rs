@@ -4,6 +4,20 @@ use super::color::Rgba;
 use serde::Deserialize;
 use serde::de::{self, Deserializer};
 use serde_json::Value;
+use std::cell::Cell;
+
+thread_local! {
+    /// Easing used for keyframes that name none (set per layer while parsing).
+    static DEFAULT_EASE: Cell<Easing> = const { Cell::new(Easing::Linear) };
+}
+
+/// Run `f` with `ease` as the default keyframe easing.
+pub(crate) fn with_default_ease<R>(ease: Easing, f: impl FnOnce() -> R) -> R {
+    let previous = DEFAULT_EASE.replace(ease);
+    let result = f();
+    DEFAULT_EASE.set(previous);
+    result
+}
 
 /// Timing curve applied to the segment that ends at a keyframe.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -293,7 +307,7 @@ impl<T: Lerp> Anim<T> {
 
     pub(crate) fn parse(v: &Value) -> Result<Self, String> {
         match v {
-            Value::Array(items) => Self::parse_keys(items, Easing::Linear),
+            Value::Array(items) => Self::parse_keys(items, DEFAULT_EASE.get()),
             Value::Object(map) => {
                 for k in map.keys() {
                     if k != "keys" && k != "ease" {
@@ -304,7 +318,7 @@ impl<T: Lerp> Anim<T> {
                 }
                 let ease = match map.get("ease") {
                     Some(e) => Easing::parse(e)?,
-                    None => Easing::Linear,
+                    None => DEFAULT_EASE.get(),
                 };
                 match map.get("keys") {
                     Some(Value::Array(items)) => Self::parse_keys(items, ease),
