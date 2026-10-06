@@ -341,6 +341,23 @@ fn load_custom_template_from_disk() {
     assert!(opaque_pixels(&buf) > 0);
 }
 
+/// The bundled template directories also load from disk (they reference the
+/// shared fonts with `"fonts": ["../fonts"]`), so authors can copy them.
+#[test]
+fn builtin_template_directories_load_from_disk() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("templates");
+    for name in ["clean", "cinematic", "retro"] {
+        let tpl = TitleTemplate::load(&root.join(name)).unwrap();
+        assert_eq!(tpl.name(), name);
+        assert!(tpl.sound().is_none());
+        let f = fields(&[("title", "Test")]);
+        let r = TitleRenderer::new(&tpl, &f, 320, 180, 25).unwrap();
+        let mut buf = vec![0u8; 320 * 180 * 4];
+        r.render_frame(r.frame_count() / 2, &mut buf);
+        assert!(opaque_pixels(&buf) > 0);
+    }
+}
+
 #[test]
 fn invalid_templates_are_reported() {
     let dir = tempfile::tempdir().unwrap();

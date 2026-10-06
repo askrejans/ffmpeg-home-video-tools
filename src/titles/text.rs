@@ -203,10 +203,22 @@ impl Fonts {
         if !info.families.iter().any(|(n, _)| n == family) {
             return None;
         }
+        // A variable font can render the requested weight itself.
+        let variable_range = db
+            .with_face_data(id, |data, index| {
+                let font = skrifa::FontRef::from_index(data, index).ok()?;
+                let axis = font.axes().get_by_tag(Tag::new(b"wght"))?;
+                Some((axis.min_value(), axis.max_value()))
+            })
+            .flatten();
+        let weight = match variable_range {
+            Some((lo, hi)) => fontdb::Weight((weight as f32).clamp(lo, hi).round() as u16),
+            None => info.weight,
+        };
         Some(Face {
             id,
             family: family.to_string(),
-            weight: info.weight,
+            weight,
             style: info.style,
             stretch: info.stretch,
         })

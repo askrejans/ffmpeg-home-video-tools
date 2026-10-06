@@ -108,7 +108,9 @@ impl TitleTemplate {
         let json_path = dir.join("template.json");
         let json = std::fs::read_to_string(&json_path)
             .map_err(|e| template_err(&json_path, format!("cannot read template: {e}")))?;
-        let spec = spec::parse_template(&json).map_err(|e| template_err(&json_path, e))?;
+        // Tolerate a byte-order mark left by some editors.
+        let json = json.strip_prefix('\u{feff}').unwrap_or(&json);
+        let spec = spec::parse_template(json).map_err(|e| template_err(&json_path, e))?;
 
         let mut font_paths: Vec<PathBuf> = Vec::new();
         let add_dir = |d: &Path, out: &mut Vec<PathBuf>| -> Result<()> {

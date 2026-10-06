@@ -145,9 +145,11 @@ name** (`"font": "IBM Plex Sans"`) and pick the closest available `weight`
 `fallback_fonts` must be among the template's fonts; otherwise loading fails
 and the error lists the families that are available.
 
-Prefer static (single-weight) font files. Make sure the licence of every font
-you ship allows redistribution (the bundled fonts use the SIL Open Font
-License; see `templates/fonts/README.md`).
+Static (single-weight) font files are the simplest choice. Variable fonts
+with a weight (`wght`) axis also work: the requested weight is used directly,
+within the axis range; other axes keep their defaults. Make sure the licence
+of every font you ship allows redistribution (the bundled fonts use the SIL
+Open Font License; see `templates/fonts/README.md`).
 
 **Fallback.** Text is split into runs by font coverage. For every character the
 renderer tries, in order: the layer's font, the layer's `"fallback"` families,
