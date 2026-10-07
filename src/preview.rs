@@ -5,7 +5,7 @@ use crate::error::{Error, Result};
 use crate::events::{CancelToken, Event, EventSink, Stage};
 use crate::probe::{MediaInfo, VideoInfo};
 use crate::project::Quality;
-use crate::render::filters::contain;
+use crate::render::filters::{contain, rotation_filters};
 use crate::tools::FfmpegTools;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
@@ -32,6 +32,7 @@ fn picture_chain(tools: &FfmpegTools, video: &VideoInfo, w: u32, h: u32) -> Stri
                 .to_string(),
         );
     }
+    chain.extend(rotation_filters(video.manual_rotation));
     chain.push(format!(
         "scale={w}:{h}:flags=bicubic:in_range=auto:out_range=tv:in_color_matrix=auto:out_color_matrix=bt709,setsar=1"
     ));

@@ -5,7 +5,7 @@ use crate::events::CancelToken;
 use crate::frame::{composite_premultiplied, rgb_to_yuv, solid};
 use crate::probe::MediaInfo;
 use crate::render::decode::ClipDecoder;
-use crate::render::filters::backdrop_graph;
+use crate::render::filters::{backdrop_graph, clip_graph, contain};
 use crate::titles::{TitleBackground, TitleRenderer};
 use crate::tools::FfmpegTools;
 use rayon::prelude::*;
@@ -25,6 +25,7 @@ enum Backdrop {
 /// Everything needed to produce the intro, prepared once per render.
 pub(crate) struct IntroSource {
     renderer: Arc<TitleRenderer>,
+    first_clip: Option<(MediaInfo, f64)>,
     backdrop: Backdrop,
     width: u32,
     height: u32,
@@ -59,6 +60,7 @@ impl IntroSource {
         };
         Self {
             renderer: Arc::new(renderer),
+            first_clip: first_clip.map(|(m, s)| (m.clone(), s)),
             backdrop,
             width,
             height,
@@ -74,6 +76,41 @@ impl IntroSource {
         frames: u64,
         cancel: &CancelToken,
     ) -> Result<IntroStream> {
+        for slot in self.renderer.image_slots() {
+            if slot != "first_clip" {
+                return Err(crate::Error::Template(format!(
+                    "unsupported decoded image slot {slot:?}"
+                )));
+            }
+            let (media, start) = self.first_clip.as_ref().ok_or_else(|| {
+                crate::Error::Template("first_clip image slot needs a video".into())
+            })?;
+            let video = media.video.as_ref().expect("probed video");
+            let (w, h) = contain(video.display_aspect(), self.width, self.height);
+            let graph = clip_graph(video, w, h, self.fps, self.tonemap);
+            let mut decoder = ClipDecoder::spawn(
+                tools,
+                &media.path,
+                *start,
+                1.0 / f64::from(self.fps),
+                graph,
+                w,
+                h,
+                self.hardware_decode,
+                cancel,
+            )?;
+            let yuv = decoder.next_frame()?;
+            decoder.finish();
+            let mut rgba = vec![0; w as usize * h as usize * 4];
+            crate::compositor::from_yuv(
+                &yuv,
+                &mut rgba,
+                w,
+                h,
+                crate::compositor::PixelFormat::Rgba,
+            );
+            self.renderer.bind_image(&slot, w, h, &rgba)?;
+        }
         let backdrop = match &self.backdrop {
             Backdrop::Solid(yuv) => StreamBackdrop::Solid(solid(self.width, self.height, *yuv)),
             Backdrop::Footage {

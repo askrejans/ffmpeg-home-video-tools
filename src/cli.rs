@@ -367,6 +367,7 @@ fn build_project(args: &RenderArgs, media: &[MediaInfo]) -> Result<Project> {
             Clip {
                 path: m.path.clone(),
                 trim,
+                rotation: 0,
             }
         })
         .collect();

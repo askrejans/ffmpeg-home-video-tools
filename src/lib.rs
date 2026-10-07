@@ -7,6 +7,8 @@
 //! title intros, two-pass EBU R128 loudness normalisation and a watermark are
 //! supported.
 
+pub mod audio;
+pub mod compositor;
 pub mod discover;
 pub mod encoders;
 pub mod error;

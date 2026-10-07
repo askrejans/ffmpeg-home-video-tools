@@ -50,6 +50,9 @@ pub struct VideoInfo {
     pub sar_den: u32,
     /// Clockwise rotation needed for display: 0, 90, 180 or 270.
     pub rotation: u32,
+    /// Additional clockwise rotation applied after automatic source orientation.
+    #[serde(default)]
+    pub manual_rotation: u32,
     /// Size as displayed, after pixel aspect and rotation.
     pub display_width: u32,
     pub display_height: u32,
@@ -61,6 +64,21 @@ pub struct VideoInfo {
 }
 
 impl VideoInfo {
+    /// Add a clockwise quarter-turn override while preserving source metadata.
+    pub fn with_rotation(&self, degrees: i32) -> Result<Self> {
+        if degrees.rem_euclid(90) != 0 {
+            return Err(Error::InvalidProject(
+                "rotation must be a multiple of 90 degrees".into(),
+            ));
+        }
+        let rotation = degrees.rem_euclid(360) as u32;
+        let mut video = self.clone();
+        video.manual_rotation = (video.manual_rotation % 360 + rotation) % 360;
+        if rotation % 180 == 90 {
+            std::mem::swap(&mut video.display_width, &mut video.display_height);
+        }
+        Ok(video)
+    }
     /// Display aspect ratio (width / height).
     pub fn display_aspect(&self) -> f64 {
         self.display_width as f64 / self.display_height.max(1) as f64
@@ -90,6 +108,17 @@ pub struct MediaInfo {
     pub audio_streams: usize,
     pub recorded_at: Option<DateTime<FixedOffset>>,
     pub recorded_at_source: Option<DateSource>,
+}
+
+impl MediaInfo {
+    /// Add a display rotation to video metadata for previews or planning.
+    pub fn with_rotation(&self, degrees: i32) -> Result<Self> {
+        let mut media = self.clone();
+        if let Some(video) = &self.video {
+            media.video = Some(video.with_rotation(degrees)?);
+        }
+        Ok(media)
+    }
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -410,6 +439,7 @@ fn video_info(stream: &ProbeStream) -> VideoInfo {
         sar_num,
         sar_den,
         rotation,
+        manual_rotation: 0,
         display_width,
         display_height,
         frame_rate,

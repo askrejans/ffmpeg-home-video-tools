@@ -255,6 +255,7 @@ pub(crate) struct LayerSpec {
 #[derive(Debug, Clone)]
 pub(crate) enum LayerKind {
     Text(Box<TextSpec>, Placement),
+    Image(ImageSpec, Placement),
     Shape(ShapeKind, ShapeSpec, Placement),
     Letterbox(LetterboxSpec),
     Fill(FillSpec),
@@ -264,6 +265,23 @@ pub(crate) enum LayerKind {
     Sweep(SweepSpec),
     Particles(ParticlesSpec),
     NoiseBand(NoiseBandSpec),
+}
+
+#[derive(Deserialize, Debug, Clone, Copy, Default)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum ImageFit {
+    #[default]
+    Cover,
+    Contain,
+}
+#[derive(Deserialize, Debug, Clone)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct ImageSpec {
+    pub slot: String,
+    pub width: f32,
+    pub height: f32,
+    #[serde(default)]
+    pub fit: ImageFit,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -808,6 +826,10 @@ fn parse_layer_body(ty: &str, mut obj: Map<String, Value>) -> Result<LayerSpec, 
             let placement = from_map(take_keys(&mut obj, PLACEMENT_KEYS))?;
             LayerKind::Text(Box::new(from_map(obj)?), placement)
         }
+        "image" => {
+            let placement = from_map(take_keys(&mut obj, PLACEMENT_KEYS))?;
+            LayerKind::Image(from_map(obj)?, placement)
+        }
         "rect" | "line" | "ellipse" | "triangle" => {
             let shape = match ty {
                 "ellipse" => ShapeKind::Ellipse,
@@ -1106,6 +1128,19 @@ fn validate_layout(spec: &TemplateSpec, layout: &Layout, suffix: &str) -> Result
                     && !(0.0..=120.0).contains(&j.rate)
                 {
                     return Err(err("jitter \"rate\" must be within 0..120".into()));
+                }
+            }
+            LayerKind::Image(image, p) => {
+                check_placement(p)?;
+                if image.slot.trim().is_empty()
+                    || !(0.0..=4.0).contains(&image.width)
+                    || image.width == 0.0
+                    || !(0.0..=4.0).contains(&image.height)
+                    || image.height == 0.0
+                {
+                    return Err(err(
+                        "image needs a slot and positive width/height up to 4".into()
+                    ));
                 }
             }
             LayerKind::Shape(_, s, p) => {

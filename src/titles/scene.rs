@@ -6,13 +6,14 @@ use super::anim::Anim;
 use super::color::Rgba;
 use super::effects::{Rng, grain_tiles, smoothstep, vignette_map};
 use super::spec::{
-    Chroma, Direction, Frame, Glow, GlyphAnim, GradientKind, HAlign, Jitter, LayerKind,
+    Chroma, Direction, Frame, Glow, GlyphAnim, GradientKind, HAlign, ImageFit, Jitter, LayerKind,
     NoiseBandSpec, ParticleKind, ParticlesSpec, Placement, Shadow, ShapeKind, StaggerOrder,
     SweepSpec, TemplateSpec, TextSpec, TextSweep, VAlign,
 };
 use super::text::{Face, FontBlob, Fonts, GlyphShape, fit_text};
 use crate::error::{Error, Result};
 use std::collections::{BTreeMap, HashMap};
+use std::sync::RwLock;
 use tiny_skia::{
     GradientStop, LinearGradient, Pixmap, Point, RadialGradient, Shader, SpreadMode, Transform,
 };
@@ -146,6 +147,16 @@ impl TextLayer {
 }
 
 #[derive(Debug)]
+pub(crate) struct ImageLayer {
+    pub slot: String,
+    pub pos: Pos,
+    pub w: f32,
+    pub h: f32,
+    pub fit: ImageFit,
+    pub texture: RwLock<Option<Pixmap>>,
+}
+
+#[derive(Debug)]
 pub(crate) struct ShapeLayer {
     pub kind: ShapeKind,
     pub pos: Pos,
@@ -225,6 +236,7 @@ pub(crate) struct ParticlesLayer {
 pub(crate) enum Kind {
     Text(Box<TextLayer>),
     Shape(ShapeLayer),
+    Image(ImageLayer),
     Letterbox(LetterboxLayer),
     Fill(FillLayer),
     Vignette(VignetteLayer),
@@ -441,7 +453,7 @@ pub(crate) fn build_scene(
         let mut members: Vec<(usize, f32, f32)> = Vec::new(); // (layer, height, gap)
         for (i, layer) in layout.layers.iter().enumerate() {
             let placement = match &layer.kind {
-                LayerKind::Text(_, p) | LayerKind::Shape(_, _, p) => p,
+                LayerKind::Text(_, p) | LayerKind::Shape(_, _, p) | LayerKind::Image(_, p) => p,
                 _ => continue,
             };
             if placement.stack.as_deref() != Some(name.as_str()) {
@@ -450,6 +462,7 @@ pub(crate) fn build_scene(
             let height = match &prepared[i] {
                 Some(Kind::Text(t)) => t.block_height(),
                 Some(Kind::Shape(sh)) => sh.h,
+                Some(Kind::Image(image)) => image.h,
                 _ => continue,
             };
             members.push((i, height, placement.gap * ctx.s));
@@ -479,6 +492,7 @@ pub(crate) fn build_scene(
             match &mut prepared[*i] {
                 Some(Kind::Text(t)) => t.pos.top = Some(top),
                 Some(Kind::Shape(sh)) => sh.pos.top = Some(top),
+                Some(Kind::Image(image)) => image.pos.top = Some(top),
                 _ => {}
             }
             top += hgt;
@@ -667,6 +681,14 @@ fn prepare_other(
     let s = ctx.s;
     Some(match kind {
         LayerKind::Text(..) => return None,
+        LayerKind::Image(image, p) => Kind::Image(ImageLayer {
+            slot: image.slot.clone(),
+            pos: Pos::new(p, ctx.canvas, ctx.safe),
+            w: image.width * s,
+            h: image.height * s,
+            fit: image.fit,
+            texture: RwLock::new(None),
+        }),
         LayerKind::Shape(shape, sp, p) => {
             let w = match &sp.width_of {
                 Some(id) => {

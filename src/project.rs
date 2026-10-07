@@ -25,6 +25,10 @@ pub struct Clip {
     pub path: PathBuf,
     #[serde(default)]
     pub trim: Option<Trim>,
+    /// Additional clockwise display rotation in degrees, after source metadata.
+    /// Must be a multiple of 90; zero preserves automatic orientation.
+    #[serde(default)]
+    pub rotation: i32,
 }
 
 impl Clip {
@@ -32,6 +36,7 @@ impl Clip {
         Self {
             path: path.into(),
             trim: None,
+            rotation: 0,
         }
     }
 }
@@ -385,6 +390,12 @@ impl Project {
             return Err(Error::NoClips);
         }
         for (i, clip) in self.clips.iter().enumerate() {
+            if clip.rotation.rem_euclid(90) != 0 {
+                return bad(format!(
+                    "clip {}: rotation must be a multiple of 90 degrees",
+                    i + 1
+                ));
+            }
             if let Some(trim) = clip.trim {
                 if !trim.start.is_finite() || trim.start < 0.0 {
                     return bad(format!("clip {}: trim start must be ≥ 0", i + 1));
@@ -473,6 +484,10 @@ mod tests {
     fn rejects_bad_values() {
         let err = |json: &str| Project::from_json(json).unwrap_err().code();
         assert_eq!(err(r#"{"clips":[],"output":{"path":"o"}}"#), "no_clips");
+        assert_eq!(
+            err(r#"{"clips":[{"path":"a","rotation":45}],"output":{"path":"o"}}"#),
+            "invalid_project"
+        );
         assert_eq!(
             err(r#"{"clips":[{"path":"a","trim":{"start":5,"end":2}}],"output":{"path":"o"}}"#),
             "invalid_project"

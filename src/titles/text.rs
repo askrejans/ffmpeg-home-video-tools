@@ -152,6 +152,25 @@ fn attaches_to_previous(c: char) -> bool {
         0x1F3FB..=0x1F3FF | 0xE0020..=0xE007F | 0xE0100..=0xE01EF)
 }
 
+fn face_weight(
+    db: &fontdb::Database,
+    id: fontdb::ID,
+    requested: u16,
+    default: fontdb::Weight,
+) -> fontdb::Weight {
+    let range = db
+        .with_face_data(id, |data, index| {
+            let font = skrifa::FontRef::from_index(data, index).ok()?;
+            let axis = font.axes().get_by_tag(Tag::new(b"wght"))?;
+            Some((axis.min_value(), axis.max_value()))
+        })
+        .flatten();
+    match range {
+        Some((lo, hi)) => fontdb::Weight((requested as f32).clamp(lo, hi).round() as u16),
+        None => default,
+    }
+}
+
 impl Fonts {
     /// Build a font system from template fonts, optionally with the
     /// installed system fonts as a last-resort fallback.
@@ -204,17 +223,7 @@ impl Fonts {
             return None;
         }
         // A variable font can render the requested weight itself.
-        let variable_range = db
-            .with_face_data(id, |data, index| {
-                let font = skrifa::FontRef::from_index(data, index).ok()?;
-                let axis = font.axes().get_by_tag(Tag::new(b"wght"))?;
-                Some((axis.min_value(), axis.max_value()))
-            })
-            .flatten();
-        let weight = match variable_range {
-            Some((lo, hi)) => fontdb::Weight((weight as f32).clamp(lo, hi).round() as u16),
-            None => info.weight,
-        };
+        let weight = face_weight(db, id, weight, info.weight);
         Some(Face {
             id,
             family: family.to_string(),
@@ -237,7 +246,7 @@ impl Fonts {
                 Some(Face {
                     id: *id,
                     family: info.families.first()?.0.clone(),
-                    weight: info.weight,
+                    weight: face_weight(db, *id, weight, info.weight),
                     style: info.style,
                     stretch: info.stretch,
                 })
@@ -448,6 +457,30 @@ impl Fonts {
             left: image.placement.left as f32,
             top: image.placement.top as f32,
         })
+    }
+}
+
+#[cfg(test)]
+mod variable_font_tests {
+    use super::*;
+
+    #[test]
+    #[ignore = "set VIDEO_PROCESSOR_TEST_VARIABLE_FONT to a variable font with a wght axis"]
+    fn variable_bundled_fallback_uses_requested_weight() {
+        let path = std::env::var("VIDEO_PROCESSOR_TEST_VARIABLE_FONT").unwrap();
+        let blob: FontBlob = Arc::new(std::fs::read(path).unwrap());
+        let fonts = Fonts::new(&[blob], false);
+        let fallback = fonts.other_template_faces(&[], 600);
+        assert!(!fallback.is_empty());
+        assert!(
+            fallback
+                .iter()
+                .all(|face| face.weight == fontdb::Weight(600))
+        );
+        for face in &fallback {
+            let primary = fonts.resolve(&face.family, 600, false).unwrap();
+            assert_eq!(primary.weight, face.weight);
+        }
     }
 }
 

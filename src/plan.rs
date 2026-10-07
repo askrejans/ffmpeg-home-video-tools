@@ -22,6 +22,8 @@ pub enum SegmentSource {
         /// Index into `Project::clips`.
         clip: usize,
         media: Box<MediaInfo>,
+        /// Normalized additional clockwise rotation, after source orientation.
+        rotation: u32,
         /// Seconds into the source file.
         start: f64,
         end: f64,
@@ -200,7 +202,8 @@ pub fn plan(
         segments.push(Segment {
             source: SegmentSource::Clip {
                 clip: i,
-                media: Box::new(info.clone()),
+                media: Box::new(info.with_rotation(project.clips[i].rotation)?),
+                rotation: project.clips[i].rotation.rem_euclid(360) as u32,
                 start: *start,
                 end: *end,
             },
@@ -277,6 +280,7 @@ pub(crate) mod tests {
                 sar_num: 1,
                 sar_den: 1,
                 rotation: 0,
+                manual_rotation: 0,
                 display_width: 1920,
                 display_height: 1080,
                 frame_rate: fps,
@@ -300,6 +304,42 @@ pub(crate) mod tests {
             audio: Default::default(),
             watermark: None,
         }
+    }
+
+    #[test]
+    fn manual_rotation_follows_metadata_without_mutating_probe_results() {
+        let mut media = video("a", 2.0, 30.0);
+        let original = media.video.as_mut().unwrap();
+        original.rotation = 90;
+        original.display_width = 1080;
+        original.display_height = 1920;
+        for (degrees, normalized, width, height) in [
+            (90, 90, 1920, 1080),
+            (180, 180, 1080, 1920),
+            (270, 270, 1920, 1080),
+            (-90, 270, 1920, 1080),
+        ] {
+            let mut p = project(&["a"]);
+            p.clips[0].rotation = degrees;
+            let timeline = plan(&p, &[media.clone()], None).unwrap();
+            let SegmentSource::Clip {
+                media: adjusted,
+                rotation,
+                ..
+            } = &timeline.segments[0].source
+            else {
+                panic!("expected clip");
+            };
+            let adjusted = adjusted.video.as_ref().unwrap();
+            assert_eq!(*rotation, normalized);
+            assert_eq!(adjusted.rotation, 90);
+            assert_eq!(adjusted.manual_rotation, normalized);
+            assert_eq!(
+                (adjusted.display_width, adjusted.display_height),
+                (width, height)
+            );
+        }
+        assert_eq!(media.video.unwrap().manual_rotation, 0);
     }
 
     #[test]

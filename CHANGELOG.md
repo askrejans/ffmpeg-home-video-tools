@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.4.0 — 2026-10-08
+
+Shared rendering and soundtrack APIs for hosts that use native media codecs.
+
+### New
+- Public `audio` APIs mix decoded stereo 48 kHz float PCM, apply bounded clip levelling, equal-power overlaps and cut micro-fades, and normalize the complete soundtrack with EBU R128 measurement and a true-peak limiter. Processing streams from files, supports cancellation, and writes verified float WAV/RF64 output atomically.
+- Public `compositor::blend` accepts opaque packed RGBA or BGRA frames and uses the same transition algorithms as the process renderer.
+- Title templates support named caller-bound image layers, with cached cover/contain fitting. The process renderer supplies the first trimmed video frame to the `first_clip` slot.
+- Optional `Clip.rotation` applies an additional clockwise multiple of 90 degrees after automatic source orientation. Planning, thumbnails, filmstrips, proxies and title pictures share this orientation rule.
+- Public `encoders::video_bitrate_kbps` exposes the same encoding policy to native hosts.
+
+### Changed
+- Desktop soundtrack normalization now uses the same Rust PCM implementation as in-process hosts; FFmpeg decodes the inputs and encodes the finished soundtrack instead of applying its separate `loudnorm` filter.
+- Standard 720p, 1080p and 2160p presets use explicit bitrate budgets, including portrait layouts; arbitrary canvases retain pixel-count scaling.
+
+### Fixed
+- Explicit encoder identifiers take precedence over codec aliases, so selecting the Media Foundation software path does not select its hardware variant.
+- Variable fallback fonts honor the requested text weight.
+
+### Rust API migration
+- `Clip` adds `rotation`; prefer `Clip::new(path)` or add `rotation: 0` to existing struct literals.
+- `VideoInfo` adds `manual_rotation`; add `manual_rotation: 0` to existing literals.
+- `SegmentSource::Clip` adds `rotation`; update exhaustive field patterns or use `..` for fields the caller does not need.
+- Existing Project and media JSON without the added rotation fields still deserialize with zero rotation. The crate remains GPL-3.0-only.
+
 ## 0.3.0 — 2026-10-06
 
 A rewrite of the Rust tool as a library plus CLI.

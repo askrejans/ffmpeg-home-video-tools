@@ -48,17 +48,41 @@ fn video_candidates() -> &'static [(&'static str, &'static str, bool)] {
 }
 
 /// Target video bitrate in kbit/s.
-pub(crate) fn video_bitrate_kbps(width: u32, height: u32, fps: u32, quality: Quality) -> u32 {
+/// Standard 720p, 1080p and 2160p canvases use fixed rates; arbitrary canvases
+/// scale sub-linearly with their pixel count. Quality applies to either policy.
+pub fn video_bitrate_kbps(width: u32, height: u32, fps: u32, quality: Quality) -> u32 {
     let pixels = f64::from(width) * f64::from(height);
-    // 16 Mbit/s for 1080p30, scaled sub-linearly with pixel count.
-    let base = 16_000.0 * (pixels / (1920.0 * 1080.0)).powf(0.8);
-    let motion = if fps >= 50 { 1.5 } else { 1.0 };
+    let fast = fps >= 50;
+    let base = match (width.max(height), width.min(height)) {
+        (1280, 720) => {
+            if fast {
+                12_000.0
+            } else {
+                8_000.0
+            }
+        }
+        (1920, 1080) => {
+            if fast {
+                24_000.0
+            } else {
+                16_000.0
+            }
+        }
+        (3840, 2160) => {
+            if fast {
+                70_000.0
+            } else {
+                45_000.0
+            }
+        }
+        _ => 16_000.0 * (pixels / (1920.0 * 1080.0)).powf(0.8) * if fast { 1.5 } else { 1.0 },
+    };
     let quality = match quality {
         Quality::Draft => 0.35,
         Quality::Standard => 1.0,
         Quality::High => 1.4,
     };
-    ((base * motion * quality) as u32).clamp(500, 120_000)
+    ((base * quality) as u32).clamp(500, 120_000)
 }
 
 /// Encoder-specific arguments (after `-c:v`).
@@ -221,7 +245,12 @@ pub fn select_video_encoder(
     if let Some(name) = forced {
         let (id, codec, hardware) = video_candidates()
             .iter()
-            .find(|(id, codec, _)| *id == name || *codec == name)
+            .find(|(id, _, _)| *id == name)
+            .or_else(|| {
+                video_candidates()
+                    .iter()
+                    .find(|(_, codec, _)| *codec == name)
+            })
             .map(|(i, c, h)| (i.to_string(), c.to_string(), *h))
             .unwrap_or((name.to_string(), name.to_string(), false));
         if !available.contains(&codec) {
@@ -327,6 +356,32 @@ mod tests {
     use super::*;
 
     #[test]
+    fn standard_preset_bitrates_are_frame_rate_and_orientation_exact() {
+        for (width, height, slow, fast) in [
+            (1280, 720, 8_000, 12_000),
+            (1920, 1080, 16_000, 24_000),
+            (3840, 2160, 45_000, 70_000),
+        ] {
+            for (width, height) in [(width, height), (height, width)] {
+                for fps in [24, 25, 30] {
+                    assert_eq!(
+                        video_bitrate_kbps(width, height, fps, Quality::Standard),
+                        slow
+                    );
+                }
+                for fps in [50, 60] {
+                    assert_eq!(
+                        video_bitrate_kbps(width, height, fps, Quality::Standard),
+                        fast
+                    );
+                }
+            }
+        }
+        assert_eq!(video_bitrate_kbps(1280, 720, 30, Quality::Draft), 2_800);
+        assert_eq!(video_bitrate_kbps(1920, 1080, 30, Quality::High), 22_400);
+    }
+
+    #[test]
     fn bitrates_scale_with_size_and_rate() {
         assert_eq!(
             video_bitrate_kbps(1920, 1080, 30, Quality::Standard),
@@ -356,5 +411,13 @@ mod tests {
         assert!(x.windows(2).any(|w| w == ["-crf", "17"]));
         let mf = video_args("h264_mf_hw", 8_000, 30, Quality::Standard);
         assert!(mf.windows(2).any(|w| w == ["-hw_encoding", "1"]));
+    }
+    #[test]
+    fn media_foundation_software_fallback_disables_hardware_and_keeps_timing() {
+        let mf = video_args("h264_mf", 16_000, 30, Quality::Standard);
+        assert!(mf.windows(2).any(|w| w == ["-hw_encoding", "0"]));
+        assert!(mf.windows(2).any(|w| w == ["-rate_control", "u_vbr"]));
+        assert!(mf.windows(2).any(|w| w == ["-b:v", "16000k"]));
+        assert!(mf.windows(2).any(|w| w == ["-g", "60"]));
     }
 }

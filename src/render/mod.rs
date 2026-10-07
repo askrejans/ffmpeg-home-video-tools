@@ -191,9 +191,13 @@ pub fn render_probed(
                 SegmentSource::Clip { media, start, .. } => Some((&**media, *start)),
                 SegmentSource::Intro => None,
             });
+            let fallback_media = media
+                .first()
+                .map(|m| m.with_rotation(project.clips[0].rotation))
+                .transpose()?;
             let first_clip = first_clip.or_else(|| {
-                media
-                    .first()
+                fallback_media
+                    .as_ref()
                     .map(|m| (m, project.clips[0].trim.map_or(0.0, |t| t.start)))
             });
             Some(intro::IntroSource::new(

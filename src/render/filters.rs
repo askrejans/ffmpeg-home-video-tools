@@ -92,7 +92,17 @@ pub(crate) fn fit_for(video: &VideoInfo, w: u32, h: u32) -> Fit {
     }
 }
 
-/// Deinterlace, tone-map and resample time before any scaling.
+/// Additional orientation applied after FFmpeg's source-metadata autorotation.
+pub(crate) fn rotation_filters(rotation: u32) -> Vec<String> {
+    match rotation % 360 {
+        90 => vec!["transpose=clock".into()],
+        180 => vec!["hflip".into(), "vflip".into()],
+        270 => vec!["transpose=cclock".into()],
+        _ => Vec::new(),
+    }
+}
+
+/// Deinterlace, tone-map, orient and resample time before canvas scaling.
 fn prelude(video: &VideoInfo, fps: u32, tonemap: bool) -> Vec<String> {
     let mut chain = Vec::new();
     if video.interlaced {
@@ -108,6 +118,7 @@ fn prelude(video: &VideoInfo, fps: u32, tonemap: bool) -> Vec<String> {
              zscale=p=bt709,tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv"
         ));
     }
+    chain.extend(rotation_filters(video.manual_rotation));
     chain.push(format!("fps=fps={fps}:start_time=0"));
     chain
 }

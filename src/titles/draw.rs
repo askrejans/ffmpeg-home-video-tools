@@ -7,8 +7,8 @@ use super::effects::{
     hash2, over_px, over_span, scale_span,
 };
 use super::scene::{
-    FillLayer, GrainLayer, Kind, LetterboxLayer, ParticlesLayer, ScanlinesLayer, Scene, ShapeLayer,
-    TextLayer, VignetteLayer,
+    FillLayer, GrainLayer, ImageLayer, Kind, LetterboxLayer, ParticlesLayer, ScanlinesLayer, Scene,
+    ShapeLayer, TextLayer, VignetteLayer,
 };
 use super::spec::{Direction, NoiseBandSpec, ParticleKind, ShapeKind, SweepSpec};
 use super::text::GlyphShape;
@@ -357,6 +357,7 @@ impl Scene {
             match &layer.kind {
                 Kind::Text(tl) => self.draw_text(&mut canvas, tl, t, o),
                 Kind::Shape(sh) => self.draw_shape(&mut canvas, sh, t, o),
+                Kind::Image(image) => self.draw_image(&mut canvas, image, t, o),
                 Kind::Letterbox(lb) => self.draw_letterbox(&mut canvas, lb, t, o),
                 Kind::Fill(f) => self.draw_fill(&mut canvas, f, t, o),
                 Kind::Vignette(v) => self.draw_vignette(&mut canvas, v, o),
@@ -637,6 +638,32 @@ impl Scene {
         }
         off.apply_reveal(b, mask.0, mask.1, mask.2);
         off.composite(canvas, alpha * color.a, Some(opaque));
+    }
+
+    fn draw_image(&self, canvas: &mut PixmapMut<'_>, image: &ImageLayer, t: f64, opacity: f32) {
+        let texture = image.texture.read().unwrap();
+        let Some(texture) = texture.as_ref() else {
+            return;
+        };
+        let (w, h) = (texture.width() as f32, texture.height() as f32);
+        let left = image.pos.anchor_x(t, self.s) - image.pos.align.factor() * w;
+        let top = image.pos.top_at(t, self.s, h, 0.0);
+        let transform = Transform::from_translate(left + w / 2.0, top + h / 2.0)
+            .pre_rotate(image.pos.rotation.at(t))
+            .pre_scale(image.pos.scale.at(t), image.pos.scale.at(t))
+            .pre_translate(-w / 2.0, -h / 2.0);
+        canvas.draw_pixmap(
+            0,
+            0,
+            texture.as_ref(),
+            &PixmapPaint {
+                opacity,
+                quality: FilterQuality::Bicubic,
+                ..Default::default()
+            },
+            transform,
+            None,
+        );
     }
 
     fn draw_shape(&self, canvas: &mut PixmapMut<'_>, sh: &ShapeLayer, t: f64, o: f32) {

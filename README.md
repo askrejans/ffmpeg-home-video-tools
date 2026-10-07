@@ -127,6 +127,8 @@ println!("saved {}", outcome.output.display());
 
 The library is synchronous and thread-friendly: run a job on a worker thread and cancel it from anywhere with `CancelToken::cancel`. Every error has a stable `code()`.
 
+Apps that decode and encode through their operating system can use the pure Rust planner, animated title renderer, packed RGBA/BGRA transitions and streamed PCM soundtrack APIs without spawning FFmpeg. See [in-process media hosts](docs/library.md#in-process-media-hosts) and the [0.4 Rust API migration](docs/library.md#rust-api-migration-from-03).
+
 Hosts whose child processes cannot open the user's files themselves, such as sandboxed apps, can use `FfmpegTools::with_input_access(InputAccess::InheritedFd)`. Each input is then opened in-process and handed to FFmpeg as an inherited file descriptor.
 
 Full API, JSON contract, events and error codes: [docs/library.md](docs/library.md). Title template format: [docs/templates.md](docs/templates.md).
@@ -135,7 +137,7 @@ Full API, JSON contract, events and error codes: [docs/library.md](docs/library.
 
 1. **Scan and probe.** `ffprobe` JSON gives display-matrix rotation, pixel aspect, field order, colour transfer, streams and dates. Folders are walked recursively, skipping hidden files, AppleDouble `._*` files and camera sidecars (`.LRV`, `.THM`, `.LRF`).
 2. **Plan** (a pure function). Frame rate, trims and transition overlaps become exact frame and sample counts. Audio and video therefore always end on the same frame.
-3. **Audio.** Each clip's sound is decoded to 48 kHz stereo and measured (EBU R128), then mixed with equal-power crossfades. `loudnorm` pass 1 measures the mix, and pass 2 applies linear normalisation while encoding AAC.
+3. **Audio.** Each clip's sound is decoded to 48 kHz stereo PCM. Rust measures and levels clips, mixes equal-power crossfades and micro-fades, then measures and normalises the complete soundtrack with a true-peak limiter where needed. FFmpeg encodes the finished soundtrack as AAC. Native-codec hosts reuse the same Rust PCM processing.
 4. **Video.** One FFmpeg decoder per clip (at most two at once) produces canvas-sized frames, using only LGPL filters (`gblur`, `bwdif`, `zscale`/`tonemap`, `scale`, `overlay`…). A Rust compositor draws transitions, the intro and the watermark, and streams frames into one encoder.
 5. **Verify, then move.** The file is checked in a work folder and only then moved into place.
 

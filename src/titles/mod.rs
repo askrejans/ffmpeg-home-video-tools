@@ -328,6 +328,81 @@ impl TitleRenderer {
         Ok(TitleRenderer { scene })
     }
 
+    /// Named premultiplied RGBA images required by this scene.
+    pub fn image_slots(&self) -> Vec<String> {
+        let mut slots: Vec<_> = self
+            .scene
+            .layers
+            .iter()
+            .filter_map(|layer| match &layer.kind {
+                scene::Kind::Image(i) => Some(i.slot.clone()),
+                _ => None,
+            })
+            .collect();
+        slots.sort();
+        slots.dedup();
+        slots
+    }
+    /// Bind a tightly packed premultiplied RGBA image. Cover/contain fitting
+    /// happens once; render_frame then shares the prepared texture safely.
+    pub fn bind_image(&self, slot: &str, width: u32, height: u32, rgba: &[u8]) -> Result<()> {
+        use tiny_skia::{FilterQuality, IntSize, Pixmap, PixmapPaint, Transform};
+        if width == 0
+            || height == 0
+            || width > 16384
+            || height > 16384
+            || rgba.len() != width as usize * height as usize * 4
+        {
+            return Err(Error::Template("invalid image slot buffer".into()));
+        }
+        let source = Pixmap::from_vec(rgba.to_vec(), IntSize::from_wh(width, height).unwrap())
+            .ok_or_else(|| Error::Template("invalid image".into()))?;
+        let mut bound = false;
+        for layer in &self.scene.layers {
+            let scene::Kind::Image(image) = &layer.kind else {
+                continue;
+            };
+            if image.slot != slot {
+                continue;
+            }
+            let (w, h) = (
+                image.w.round().max(1.0) as u32,
+                image.h.round().max(1.0) as u32,
+            );
+            let mut target = Pixmap::new(w, h)
+                .ok_or_else(|| Error::Template("image layer is too large".into()))?;
+            let (sx, sy) = (w as f32 / width as f32, h as f32 / height as f32);
+            let scale = match image.fit {
+                spec::ImageFit::Cover => sx.max(sy),
+                spec::ImageFit::Contain => sx.min(sy),
+            };
+            let transform = Transform::from_translate(
+                (w as f32 - width as f32 * scale) / 2.0,
+                (h as f32 - height as f32 * scale) / 2.0,
+            )
+            .pre_scale(scale, scale);
+            target.draw_pixmap(
+                0,
+                0,
+                source.as_ref(),
+                &PixmapPaint {
+                    quality: FilterQuality::Bicubic,
+                    ..Default::default()
+                },
+                transform,
+                None,
+            );
+            *image.texture.write().unwrap() = Some(target);
+            bound = true;
+        }
+        if !bound {
+            return Err(Error::Template(format!(
+                "image slot {slot:?} is not declared"
+            )));
+        }
+        Ok(())
+    }
+
     /// Number of frames in the intro: `round(duration * fps)`, at least 1.
     pub fn frame_count(&self) -> u64 {
         self.scene.frames

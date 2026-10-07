@@ -605,3 +605,36 @@ fn bench_frame_times() {
         }
     }
 }
+
+#[test]
+fn bound_images_use_the_shared_layout_and_fit() {
+    let directory = tempfile::tempdir().unwrap();
+    for fit in ["cover", "contain"] {
+        let json = format!(
+            r##"{{"name":"photo","duration":2,"fields":[],"background":{{"kind":"solid","color":"#000000"}},"layers":[{{"type":"image","slot":"first_clip","width":0.5,"height":0.25,"fit":"{fit}"}}]}}"##
+        );
+        std::fs::write(directory.path().join("template.json"), json).unwrap();
+        let template = TitleTemplate::load(directory.path()).unwrap();
+        let renderer = TitleRenderer::new(&template, &BTreeMap::new(), 64, 64, 30).unwrap();
+        assert_eq!(renderer.image_slots(), vec!["first_clip"]);
+        let pixels = [200, 0, 0, 255].repeat(8);
+        renderer.bind_image("first_clip", 2, 4, &pixels).unwrap();
+        assert!(renderer.bind_image("missing", 2, 4, &pixels).is_err());
+        assert!(
+            renderer
+                .bind_image("first_clip", 2, 4, &pixels[..4])
+                .is_err()
+        );
+        let mut frame = vec![0; 64 * 64 * 4];
+        renderer.render_frame(30, &mut frame);
+        let opaque = opaque_pixels(&frame);
+        assert!(opaque > 100 && opaque <= 512);
+        let centre = &frame[(32 * 64 + 32) * 4..][..4];
+        assert!(centre[0] > 190 && centre[3] == 255);
+        if fit == "contain" {
+            assert!(opaque < 200);
+        } else {
+            assert!(opaque > 480);
+        }
+    }
+}

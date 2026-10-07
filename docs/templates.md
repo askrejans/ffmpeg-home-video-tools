@@ -517,3 +517,22 @@ a 1920×1080 frame in about a quarter of that.
 
 Put `MySans-Regular.ttf` and `MySans-Bold.ttf` (family "My Sans") in
 `fonts/` next to it. Without a date the rule stays and the stack re-centres.
+
+
+## Bound image layers
+
+An image layer names a caller-provided premultiplied RGBA slot:
+
+    {"type":"image","slot":"first_clip","width":0.8,"height":0.6,"fit":"cover"}
+
+Width and height use the same short-canvas-side units as shapes. Image layers
+support the common opacity, time window, position, scale, rotation, stack and
+portrait overrides. Fit is cover (default) or contain. The renderer fits and
+caches the image once when TitleRenderer::bind_image is called; every frame
+then reads the prepared texture. TitleRenderer::image_slots lists the slots
+requested by a scene. Binding an unknown slot or malformed buffer is an error.
+
+In the process renderer, the reserved first_clip slot is filled with the first
+trimmed frame of the first video. The same picture clean-up used for that clip
+makes it upright, square-pixel, deinterlaced and SDR before binding. Native
+hosts can bind their own decoded pixels through the same generic renderer.

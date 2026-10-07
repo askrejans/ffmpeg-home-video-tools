@@ -371,3 +371,164 @@ fn previews() {
     assert_eq!(probe_entry(&proxy, "v:0", "width,height"), "320,180");
     assert_eq!(probe_entry(&proxy, "v:0", "sample_aspect_ratio"), "1:1");
 }
+
+#[test]
+fn manual_rotation_matches_movies_and_all_preview_types_after_metadata() {
+    use std::process::Command;
+    let tools = require_ffmpeg!();
+    let cancel = CancelToken::new();
+    let dir = out_dir();
+    let coded = dir.join("quadrants.mp4");
+    let photo_template = dir.join("photo-template");
+    std::fs::create_dir(&photo_template).unwrap();
+    std::fs::write(photo_template.join("template.json"),
+        r##"{"name":"photo","duration":0.4,"fields":[],"background":{"kind":"solid","color":"#000000"},"layers":[{"type":"image","slot":"first_clip","width":1,"height":1,"fit":"contain"}]}"##).unwrap();
+    assert!(Command::new(tools.ffmpeg_path()).args([
+        "-hide_banner", "-v", "error", "-f", "lavfi", "-i",
+        "color=c=red:s=160x90:r=30:d=0.4,drawbox=x=80:y=0:w=80:h=45:color=lime:t=fill,drawbox=x=0:y=45:w=80:h=45:color=blue:t=fill,drawbox=x=80:y=45:w=80:h=45:color=yellow:t=fill",
+        "-c:v", "mpeg4", "-q:v", "2", "-y",
+    ]).arg(&coded).status().unwrap().success());
+    let corner_colours = |path: &Path| {
+        let size: Vec<usize> = probe_entry(path, "v:0", "width,height")
+            .split(',')
+            .map(|v| v.parse().unwrap())
+            .collect();
+        let output = Command::new(tools.ffmpeg_path())
+            .args(["-hide_banner", "-v", "error", "-i"])
+            .arg(path)
+            .args([
+                "-frames:v",
+                "1",
+                "-f",
+                "rawvideo",
+                "-pix_fmt",
+                "rgb24",
+                "pipe:1",
+            ])
+            .output()
+            .unwrap();
+        assert!(output.status.success());
+        let w = size[0];
+        let h = size[1];
+        let palette = [[255i32, 0, 0], [0, 255, 0], [0, 0, 255], [255, 255, 0]];
+        [(36, 36), (64, 36), (36, 64), (64, 64)].map(|(x, y)| {
+            let offset = (h * y / 100 * w + w * x / 100) * 3;
+            let pixel = &output.stdout[offset..offset + 3];
+            palette
+                .iter()
+                .enumerate()
+                .min_by_key(|(_, colour)| {
+                    pixel
+                        .iter()
+                        .zip(*colour)
+                        .map(|(&a, &b)| (i32::from(a) - b).abs())
+                        .sum::<i32>()
+                })
+                .unwrap()
+                .0
+        })
+    };
+    for metadata in [0, 90] {
+        let source = dir.join(format!("metadata-{metadata}.mp4"));
+        assert!(
+            Command::new(tools.ffmpeg_path())
+                .args(["-hide_banner", "-v", "error", "-display_rotation"])
+                .arg((-metadata).to_string())
+                .arg("-i")
+                .arg(&coded)
+                .args(["-c", "copy", "-y"])
+                .arg(&source)
+                .status()
+                .unwrap()
+                .success()
+        );
+        let original = probe(&tools, &source, &cancel).unwrap();
+        assert_eq!(original.video.as_ref().unwrap().rotation, metadata as u32);
+        for manual in [90, 180, 270] {
+            let expected = match (metadata + manual) % 360 {
+                0 => [0, 1, 2, 3],
+                90 => [2, 0, 3, 1],
+                180 => [3, 2, 1, 0],
+                _ => [1, 3, 0, 2],
+            };
+            let movie = dir.join(format!("movie-{metadata}-{manual}.mp4"));
+            let mut p = project(&[], &movie, 160, 160);
+            p.clips = vec![Clip::new(&source)];
+            p.clips[0].rotation = manual;
+            p.audio.loudness = None;
+            run(&tools, &p);
+            assert_eq!(
+                corner_colours(&movie),
+                expected,
+                "movie metadata={metadata} manual={manual}"
+            );
+            let intro_output = dir.join(format!("intro-{metadata}-{manual}.mp4"));
+            let mut intro_project = p.clone();
+            intro_project.output.path = intro_output.clone();
+            intro_project.intro = Some(ffmpeg_video_processor::Intro {
+                template: photo_template.to_string_lossy().into_owned(),
+                fields: Default::default(),
+            });
+            render(
+                &tools,
+                &intro_project,
+                &RenderOptions {
+                    intro_only: true,
+                    ..Default::default()
+                },
+                &mut |_| {},
+                &cancel,
+            )
+            .unwrap();
+            assert_eq!(
+                corner_colours(&intro_output),
+                expected,
+                "title photo metadata={metadata} manual={manual}"
+            );
+            let media = original.with_rotation(manual).unwrap();
+            let thumbnail = preview::thumbnail(
+                &tools,
+                &media,
+                0.0,
+                160,
+                &dir.join(format!("thumb-{metadata}-{manual}.jpg")),
+                &cancel,
+            )
+            .unwrap();
+            assert_eq!(
+                corner_colours(&thumbnail),
+                expected,
+                "thumbnail metadata={metadata} manual={manual}"
+            );
+            let filmstrip = preview::filmstrip(
+                &tools,
+                &media,
+                1,
+                90,
+                &dir.join(format!("strip-{metadata}-{manual}")),
+                "frame",
+                &cancel,
+            )
+            .unwrap();
+            assert_eq!(
+                corner_colours(&filmstrip[0]),
+                expected,
+                "filmstrip metadata={metadata} manual={manual}"
+            );
+            let proxy = preview::proxy(
+                &tools,
+                &media,
+                90,
+                &dir.join(format!("proxy-{metadata}-{manual}.mp4")),
+                &mut |_| {},
+                &cancel,
+            )
+            .unwrap();
+            assert_eq!(
+                corner_colours(&proxy),
+                expected,
+                "proxy metadata={metadata} manual={manual}"
+            );
+        }
+    }
+}
